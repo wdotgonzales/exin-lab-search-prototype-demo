@@ -22,6 +22,7 @@ export default function App() {
   return (
     <main style={{ fontFamily: 'sans-serif', padding: 24 }}>
       <h1>Exin Lab Search</h1>
+      <p>Deployed automatically via github actions</p>
       {error && <p style={{ color: 'crimson' }}>Error: {error}</p>}
       <pre>{health ? JSON.stringify(health, null, 2) : 'Loading…'}</pre>
     </main>
