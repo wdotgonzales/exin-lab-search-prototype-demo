@@ -20,3 +20,8 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Docker / prod
+.env.*
+!.env.example
+certs/
