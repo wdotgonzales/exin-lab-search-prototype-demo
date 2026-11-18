@@ -9,6 +9,7 @@ from app.chat.answer import (
     cost_usd,
     group_by_document,
     renumber_citations,
+    snippet,
 )
 from app.chat.llm import Completion
 from app.chat.retrieval import Retrieval, RetrievedChunk
@@ -120,3 +121,20 @@ def test_model_saying_not_found_is_reported_as_not_found():
 def test_cost():
     assert cost_usd("gpt-6-luna", 1_000_000, 0) == Decimal("0.100000")
     assert cost_usd("some-unknown-model", 100, 100) is None
+
+
+def test_snippet_shows_the_matching_line_without_markdown():
+    content = (
+        "# Incident: cranial window clouding\n"
+        "_Fictional demo data._\n"
+        "- **Date:** 14 Oct 2026\n"
+        "The window on **M-045** became hazy, then clouded.\n"
+        "Imaging was stopped."
+    )
+    assert snippet(content, "Why did the window of M-045 become cloudy?") == (
+        "…The window on M-045 became hazy, then clouded. Imaging was stopped."
+    )
+
+
+def test_snippet_falls_back_to_the_start_when_nothing_matches():
+    assert snippet("## Weights\nAll normal.", "zebra") == "Weights All normal."

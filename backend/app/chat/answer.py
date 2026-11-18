@@ -91,7 +91,7 @@ def answer_question(question: str, retrieval: Retrieval, llm: LLM) -> Answer:
         return Answer("no_sources", NOT_FOUND_TEXT, [], **usage)
 
     text, cited = renumber_citations(reply, len(sources))
-    cards = [card(sources[old - 1], new) for new, old in enumerate(cited, 1)]
+    cards = [card(sources[old - 1], new, question) for new, old in enumerate(cited, 1)]
     return Answer("answered", text, cards, **usage)
 
 
@@ -143,14 +143,45 @@ def renumber_citations(text: str, count: int) -> tuple[str, list[int]]:
     return text.strip(), list(mapping)
 
 
-def card(source: Source, n: int) -> SourceCard:
+def card(source: Source, n: int, question: str = "") -> SourceCard:
     best = source.chunks[0]
-    snippet = " ".join(best.content.split())
-    if len(snippet) > SNIPPET_CHARS:
-        snippet = snippet[:SNIPPET_CHARS].rsplit(" ", 1)[0] + "…"
     return SourceCard(
-        n, source.document_id, source.title, source.filename, snippet, best.page_number
+        n,
+        source.document_id,
+        source.title,
+        source.filename,
+        snippet(best.content, question),
+        best.page_number,
     )
+
+
+def snippet(content: str, question: str) -> str:
+    """The passage that matches the question best, not just the chunk's first
+    line: score each line by how many question words it shares, then show the
+    best line (and what follows it) without markdown symbols."""
+    words = {w.lower() for w in re.findall(r"[A-Za-z0-9-]{3,}", question)}
+    lines = [_plain(line) for line in content.splitlines()]
+    lines = [line for line in lines if line]
+    if not lines:
+        return ""
+
+    def score(line: str) -> int:
+        return len(words & {w.lower() for w in re.findall(r"[A-Za-z0-9-]{3,}", line)})
+
+    start = max(range(len(lines)), key=lambda i: (score(lines[i]), -i))
+    text = " ".join(lines[start:])
+    if start > 0:
+        text = "…" + text
+    if len(text) > SNIPPET_CHARS:
+        text = text[:SNIPPET_CHARS].rsplit(" ", 1)[0] + "…"
+    return text
+
+
+def _plain(line: str) -> str:
+    """Markdown symbols out, whitespace collapsed."""
+    line = re.sub(r"^\s*(#+|[-*+]|\d+\.)\s+", "", line)  # headings, bullets
+    line = re.sub(r"[*_`]+", "", line)  # bold, italics, code
+    return " ".join(line.split())
 
 
 def cost_usd(model: str, input_tokens: int, output_tokens: int) -> Decimal | None:
