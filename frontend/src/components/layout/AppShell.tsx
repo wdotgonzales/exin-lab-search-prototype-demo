@@ -1,10 +1,10 @@
-import { FileText, Menu, MessageSquare } from 'lucide-react'
+import { FileText, Menu } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { ChatLauncher } from '@/features/chat/ChatLauncher'
 import { cn } from '@/lib/utils'
 
 import { Logo } from './Logo'
@@ -86,14 +86,7 @@ export function AppShell() {
         </main>
       </div>
 
-      <Button
-        size="icon"
-        aria-label="Open lab assistant"
-        className="fixed right-6 bottom-6 size-14 rounded-full shadow-lg"
-        onClick={() => toast('The lab assistant arrives with the Chat feature.')}
-      >
-        <MessageSquare aria-hidden="true" className="size-6" />
-      </Button>
+      <ChatLauncher />
     </div>
   )
 }
