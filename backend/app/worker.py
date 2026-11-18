@@ -219,6 +219,9 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    logging.getLogger("httpx2").setLevel(
+        logging.WARNING
+    )  # one log line per API call is noise
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):  # docker stop / Ctrl+C
         signal.signal(sig, lambda *_: stop.set())
