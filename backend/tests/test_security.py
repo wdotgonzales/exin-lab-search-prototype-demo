@@ -34,7 +34,7 @@ def test_tampered_token_is_rejected():
 def test_token_signed_with_other_secret_is_rejected():
     token = jwt.encode(
         {"sub": str(uuid.uuid4()), "exp": datetime.now(UTC) + timedelta(hours=1)},
-        "some-other-secret",
+        "some-other-secret-that-is-also-at-least-32-bytes",
         algorithm=ALGORITHM,
     )
     assert decode_access_token(token) is None
