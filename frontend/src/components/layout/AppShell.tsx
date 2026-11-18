@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router'
 import { Logo } from './Logo'
 import { cn } from '@/lib/utils'
+import { UserMenu } from './UserMenu'
 
 const navItems = [{ to: '/', label: 'Search' }]
 
@@ -29,6 +30,9 @@ export function AppShell() {
               </NavLink>
             ))}
           </nav>
+          <div className="ml-auto">
+            <UserMenu />
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-10">

@@ -52,9 +52,10 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => api<void>('/auth/logout', { method: 'POST' }),
     onSettled: () => {
-      // Drop everything cached for the previous user, then mark as signed out.
-      queryClient.clear()
+      // Tell every useMe() "signed out" (RequireAuth then redirects to /login),
+      // then drop all other cached data so the next user never sees it.
       queryClient.setQueryData(meQueryKey, null)
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })
     },
   })
 }
