@@ -1,6 +1,5 @@
-import { LogOut } from 'lucide-react'
+import { ChevronsUpDown, LogOut } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -30,30 +29,30 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="gap-2 px-2">
+        <Button
+          variant="outline"
+          className="h-auto w-full justify-start gap-2.5 px-2.5 py-2 text-left"
+        >
           <span
             aria-hidden="true"
-            className="flex size-7 items-center justify-center rounded-full bg-primary/15 text-xs font-medium text-primary"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-medium text-primary"
           >
             {initials(user.full_name)}
           </span>
-          <span className="sr-only text-sm sm:not-sr-only">{user.full_name}</span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium">{user.full_name}</span>
+            <span className="text-xs capitalize text-muted-foreground">{user.role}</span>
+          </span>
+          <ChevronsUpDown aria-hidden="true" className="ml-auto size-4 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuLabel className="space-y-1 font-normal">
-          <p className="text-sm font-medium text-foreground">{user.full_name}</p>
+      <DropdownMenuContent side="top" align="start" className="w-56">
+        <DropdownMenuLabel className="font-normal">
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-          <Badge variant="outline" className="mt-1 capitalize">
-            {user.role}
-          </Badge>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() => logout.mutate()}
-          disabled={logout.isPending}
-        >
+        <DropdownMenuItem onSelect={() => logout.mutate()} disabled={logout.isPending}>
           <LogOut />
           {logout.isPending ? 'Signing out…' : 'Sign out'}
         </DropdownMenuItem>

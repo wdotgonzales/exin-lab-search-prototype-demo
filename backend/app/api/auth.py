@@ -44,15 +44,17 @@ def login(
         audit.record(
             db,
             "user.login_failed",
-            actor_id=user.id if user else None,
-            metadata={"email": body.email},
+            actor_user_id=user.id if user else None,
+            actor_email=body.email,
             ip_address=ip,
         )
         db.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, LOGIN_FAILED)
 
     user.last_login_at = datetime.now(UTC)
-    audit.record(db, "user.login", actor_id=user.id, ip_address=ip)
+    audit.record(
+        db, "user.login", actor_user_id=user.id, actor_email=user.email, ip_address=ip
+    )
     db.commit()
 
     response.set_cookie(

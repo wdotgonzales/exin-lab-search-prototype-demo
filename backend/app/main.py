@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import auth, health
+from app.api import auth, documents, health
 
 app = FastAPI(
     title="Exin Lab Search API",
@@ -12,3 +12,4 @@ app = FastAPI(
 
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+app.include_router(documents.router, prefix="/api")

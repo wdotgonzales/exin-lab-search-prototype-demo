@@ -1,43 +1,99 @@
+import { FileText, Menu, MessageSquare } from 'lucide-react'
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
-import { Logo } from './Logo'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+
+import { Logo } from './Logo'
 import { UserMenu } from './UserMenu'
 
-const navItems = [{ to: '/', label: 'Search' }]
+const navItems = [{ to: '/documents', label: 'Documents', icon: FileText }]
+
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <div className="flex h-full flex-col gap-7 px-3 py-5">
+      <NavLink
+        to="/documents"
+        aria-label="Exin Lab Search home"
+        className="px-2"
+        onClick={onNavigate}
+      >
+        <Logo />
+      </NavLink>
+
+      <nav aria-label="Main" className="flex flex-col gap-0.5">
+        {navItems.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              cn(
+                'flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors',
+                isActive
+                  ? 'bg-secondary font-medium text-foreground [&_svg]:text-primary'
+                  : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
+              )
+            }
+          >
+            <Icon aria-hidden="true" className="size-[18px]" />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="mt-auto">
+        <UserMenu />
+      </div>
+    </div>
+  )
+}
 
 export function AppShell() {
+  const [menuOpen, setMenuOpen] = useState(false)
+
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-6 py-4">
-          <NavLink to="/" aria-label="Exin Lab Search home">
+    <div className="flex min-h-svh bg-background text-foreground">
+      {/* Desktop / tablet sidebar */}
+      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 border-r border-border bg-card/40 md:block">
+        <SidebarContent />
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Phone top bar */}
+        <header className="flex items-center justify-between border-b border-border px-4 py-2.5 md:hidden">
+          <NavLink to="/documents" aria-label="Exin Lab Search home">
             <Logo />
           </NavLink>
-          <nav className="flex gap-1">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end
-                className={({ isActive }) =>
-                  cn(
-                    'rounded-md px-3 py-1.5 text-sm transition-colors',
-                    isActive ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
-                  )
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="ml-auto">
-            <UserMenu />
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        <Outlet />
-      </main>
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Open menu" className="size-11">
+                <Menu aria-hidden="true" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-60 p-0 data-[side=left]:w-60 data-[side=left]:sm:max-w-60">
+              <SheetTitle className="sr-only">Menu</SheetTitle>
+              <SidebarContent onNavigate={() => setMenuOpen(false)} />
+            </SheetContent>
+          </Sheet>
+        </header>
+
+        <main className="mx-auto w-full max-w-[1100px] px-5 py-8 md:px-8 md:py-10">
+          <Outlet />
+        </main>
+      </div>
+
+      <Button
+        size="icon"
+        aria-label="Open lab assistant"
+        className="fixed right-6 bottom-6 size-14 rounded-full shadow-lg"
+        onClick={() => toast('The lab assistant arrives with the Chat feature.')}
+      >
+        <MessageSquare aria-hidden="true" className="size-6" />
+      </Button>
     </div>
   )
 }

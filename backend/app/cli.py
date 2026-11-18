@@ -42,7 +42,8 @@ def create_user(args: argparse.Namespace) -> None:
             "user.created",
             target_type="user",
             target_id=str(user.id),
-            metadata={"email": user.email, "role": user.role, "via": "cli"},
+            target_label=user.email,
+            metadata={"role": user.role, "via": "cli"},
         )
         db.commit()
         print(f"Created {user.role} {user.email} ({user.id})")
