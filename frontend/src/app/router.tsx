@@ -1,7 +1,8 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, Navigate } from 'react-router'
+
 import { AppShell } from '@/components/layout/AppShell'
 import { RequireAuth } from '@/components/layout/RequireAuth'
-import { HomePage } from '@/pages/HomePage'
+import { DocumentsPage } from '@/pages/DocumentsPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
@@ -14,7 +15,8 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { path: '/', element: <HomePage /> },
+      { index: true, element: <Navigate to="/documents" replace /> },
+      { path: 'documents', element: <DocumentsPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
