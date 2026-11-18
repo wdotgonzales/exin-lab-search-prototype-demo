@@ -9,7 +9,7 @@ export class ApiError extends Error {
   }
 }
 
-function messageFrom(body: unknown, fallback: string): string {
+export function messageFrom(body: unknown, fallback: string): string {
   if (body && typeof body === 'object' && 'detail' in body) {
     const detail = (body as { detail: unknown }).detail
     if (typeof detail === 'string') return detail

@@ -17,13 +17,18 @@ import { useMe } from '@/features/auth/useAuth'
 import { formatBytes, formatDate } from '@/features/documents/format'
 import { Pagination } from '@/features/documents/Pagination'
 import { StatusBadge } from '@/features/documents/StatusBadge'
+import { UploadDialog } from '@/features/documents/UploadDialog'
+import { UploadPanel } from '@/features/documents/UploadPanel'
 import { PAGE_SIZE, useDocuments } from '@/features/documents/useDocuments'
+import { useUploadQueue } from '@/features/documents/useUploadQueue'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 
 const COLUMNS_HIDDEN_ON_PHONES = 'hidden md:table-cell'
 
 export function DocumentsPage() {
   const { data: me } = useMe()
+  const isAdmin = me?.role === 'admin'
+  const uploads = useUploadQueue()
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const page = Math.max(1, Number(params.get('page')) || 1)
@@ -59,13 +64,18 @@ export function DocumentsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <p className="text-xs tracking-[0.14em] text-primary uppercase">Documents</p>
-        <h1 className="font-serif text-5xl leading-tight">Lab documents</h1>
-        <p className="text-sm text-muted-foreground">
-          {data ? `${data.total} ${data.total === 1 ? 'file' : 'files'}` : ' '}
-        </p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs tracking-[0.14em] text-primary uppercase">Documents</p>
+          <h1 className="font-serif text-5xl leading-tight">Lab documents</h1>
+          <p className="text-sm text-muted-foreground">
+            {data ? `${data.total} ${data.total === 1 ? 'file' : 'files'}` : ' '}
+          </p>
+        </div>
+        {isAdmin && <UploadDialog onUpload={uploads.start} />}
       </div>
+
+      {isAdmin && <UploadPanel items={uploads.items} onClose={uploads.clear} />}
 
       <section aria-label="All documents" className="overflow-hidden rounded-xl border border-border">
         <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card/40 px-4 py-3">
@@ -113,7 +123,7 @@ export function DocumentsPage() {
             ) : (
               <p>
                 No documents yet.
-                {me?.role === 'admin' ? ' Use Upload files to add the first ones.' : ''}
+                {isAdmin ? ' Use Upload files to add the first ones.' : ''}
               </p>
             )}
           </div>
