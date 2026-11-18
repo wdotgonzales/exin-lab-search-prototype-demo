@@ -51,7 +51,7 @@ def test_login_success_sets_cookie_and_audits(client, db_session, make_user):
     assert user.last_login_at is not None
     rows = audit_rows(db_session, "user.login")
     assert len(rows) == 1
-    assert rows[0].actor_id == user.id
+    assert rows[0].actor_user_id == user.id
 
 
 def test_email_is_case_insensitive(client, make_user):
@@ -69,8 +69,8 @@ def test_wrong_password_is_401_and_audited(client, db_session, make_user):
 
     rows = audit_rows(db_session, "user.login_failed")
     assert len(rows) == 1
-    assert rows[0].actor_id == user.id
-    assert rows[0].metadata_ == {"email": "ana@demo.exin"}
+    assert rows[0].actor_user_id == user.id
+    assert rows[0].actor_email == "ana@demo.exin"
 
 
 @pytest.mark.parametrize("case", ["unknown_email", "disabled_user"])
