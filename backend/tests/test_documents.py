@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -124,11 +125,20 @@ def test_too_many_files_rejects_the_request(client, sign_in, storage, monkeypatc
     assert resp.status_code == 422
 
 
-def test_list_filters_and_pages(client, sign_in, storage):
+def test_list_filters_and_pages(client, db_session, sign_in, storage):
     sign_in("admin")
     upload(client, ("C-07_surgery_log.csv", b"mouse\nM-042\n"))
     upload(client, ("V-017_QC_report.pdf", pdf(1)))
     upload(client, ("M-019_headcap_incident.md", b"# M-019\n"))
+
+    # In tests everything runs in one transaction, so now() gives every row the
+    # same created_at. Set distinct times so "newest first" is deterministic.
+    order = ["C-07_surgery_log.csv", "V-017_QC_report.pdf", "M-019_headcap_incident.md"]
+    base = datetime(2026, 11, 18, tzinfo=UTC)
+    for doc in db_session.scalars(select(Document)):
+        filename = doc.external_path.rsplit("/", 1)[-1]
+        doc.created_at = base + timedelta(minutes=order.index(filename))
+    db_session.flush()
 
     everything = client.get("/api/documents").json()
     assert everything["total"] == 3
