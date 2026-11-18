@@ -25,7 +25,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set('Content-Type', 'application/json')
   }
 
-  const res = await fetch(`/api${path}`, { ...init, headers, credentials: 'include' })
+  const res = await fetch(new URL(`/api${path}`, window.location.origin), {
+    ...init,
+    headers,
+    credentials: 'include',
+  })
 
   const text = await res.text()
   const body: unknown = text ? JSON.parse(text) : null

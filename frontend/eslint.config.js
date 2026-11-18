@@ -20,8 +20,8 @@ export default defineConfig([
     },
   },
   {
-    // shadcn/ui files export components plus their style helpers (e.g. buttonVariants) by design
-    files: ['src/components/ui/**/*.{ts,tsx}'],
+    // shadcn/ui files export style helpers by design; test helpers aren't hot-reloaded
+    files: ['src/components/ui/**/*.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },
