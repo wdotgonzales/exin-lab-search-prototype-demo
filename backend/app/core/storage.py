@@ -19,7 +19,7 @@ class Storage(Protocol):
     def presigned_url(self, key: str, filename: str) -> str | None: ...
 
 
-def _inline_disposition(filename: str) -> str:
+def inline_disposition(filename: str) -> str:
     # RFC 5987 encoding, so any filename (spaces, non-ASCII) is safe in the header
     return f"inline; filename*=UTF-8''{quote(filename)}"
 
@@ -71,7 +71,7 @@ class S3Storage:
             Params={
                 "Bucket": self.bucket,
                 "Key": key,
-                "ResponseContentDisposition": _inline_disposition(filename),
+                "ResponseContentDisposition": inline_disposition(filename),
             },
             ExpiresIn=PRESIGNED_URL_SECONDS,
         )

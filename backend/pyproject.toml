@@ -11,6 +11,7 @@ dependencies = [
     "pwdlib[argon2]>=0.4.2",
     "pydantic-settings>=2.16.3",
     "pyjwt>=2.15.1",
+    "python-multipart>=0.0.34",
     "sqlalchemy>=2",
     "uvicorn[standard]>=0.54.0",
 ]
