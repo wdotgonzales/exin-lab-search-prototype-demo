@@ -1,0 +1,11 @@
+batch_id,construct,titre_vg_per_ml,prep_date,aliquots_left,qc_status,notes
+V-011,AAV9-hSyn-EGFP,9.8e12,2026-06-12,4,pass,Expression check (EXP-002)
+V-012,AAV5-CaMKIIa-hChR2(H134R)-EYFP,1.6e13,2026-07-03,2,pass,Optogenetics (EXP-003)
+V-013,AAV5-CaMKIIa-EYFP,1.4e13,2026-07-03,5,pass,Control virus for EXP-003
+V-014,AAV9-hSyn-jGCaMP8m,3.1e11,2026-07-28,0,fail,Titre far below spec; discarded. Replaced by V-016/V-017
+V-015,AAVretro-hSyn-Cre,1.1e13,2026-08-05,6,pass,Reserved for EXP-010 (planned)
+V-016,AAV9-hSyn-jGCaMP8m,1.9e13,2026-08-19,1,pass,Backup GCaMP batch
+V-017,AAV9-hSyn-jGCaMP8m,2.1e13,2026-08-26,3,pass,Used for EXP-007 cohort C-07
+V-018,AAV-PHP.eB-hSyn-DIO-hM4D(Gi)-mCherry,1.2e13,2026-09-02,4,pass,"Chemogenetics, EXP-008 (planned)"
+V-019,AAV9-hSyn-GRAB-DA3m,1.7e13,2026-09-15,2,pass,Dopamine sensor for EXP-009
+V-020,AAV9-hSyn-jGCaMP8s,2.0e13,2026-10-20,8,pending,QC pending; on hold

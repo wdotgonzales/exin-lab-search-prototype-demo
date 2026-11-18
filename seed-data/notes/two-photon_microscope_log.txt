@@ -1,0 +1,10 @@
+TWO-PHOTON RIG A - MAINTENANCE AND USAGE LOG
+Fictional demo data generated for Exin Lab Search. Not real experimental results.
+
+2026-09-30  Laser power at objective checked: 42 mW at 920 nm (OK). PMT gain calibrated.
+2026-10-06  EXP-007 vehicle sessions, C-07 (M-037 to M-048). No issues.
+2026-10-08  EXP-007 vehicle sessions. Note: M-045 field hazy at the edge.
+2026-10-13  EXP-007 XN-214 sessions. M-045 window clouded, session aborted.
+2026-10-15  EXP-007 XN-214 sessions complete for 11 mice.
+2026-10-20  Resonant scanner noise; replaced fan. Booked out half day.
+2026-10-28  Rig free for EXP-008 pilot planning.
