@@ -56,6 +56,8 @@ class Document(Base):
     content_hash: Mapped[str] = mapped_column(CHAR(64))
     status: Mapped[str] = mapped_column(Text, server_default="pending")
     error_message: Mapped[str | None] = mapped_column(Text)
+    # 2-3 sentences written by the worker; feeds the chat's catalogue.
+    summary: Mapped[str | None] = mapped_column(Text)
     access_level: Mapped[str] = mapped_column(Text, server_default="general")
     document_date: Mapped[date | None] = mapped_column(Date)
     title_tsv: Mapped[str] = mapped_column(
