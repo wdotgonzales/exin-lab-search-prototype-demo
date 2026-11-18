@@ -1,6 +1,7 @@
-"""POST /api/ask: the chat assistant (design flow 4.6).
+"""POST /api/ask: the lab assistant (design flow 4.6, v2 agent).
 
-rate limit -> hybrid retrieval -> cited answer -> log in ai_queries -> response
+rate limit -> agent (catalogue + history + read-only tools) -> checked answer
+-> log in ai_queries -> response
 """
 
 import logging
@@ -13,19 +14,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbSession
-from app.chat.answer import answer_question
-from app.chat.llm import LLM, get_llm
-from app.chat.retrieval import retrieve
+from app.chat.agent import Turn, run_agent
+from app.chat.llm import AgentLLM, get_llm
+from app.chat.tools import ToolContext
 from app.config import get_settings
 from app.ingest.embedder import Embedder, get_embedder
 from app.models import AiQuery, User
-from app.schemas.ask import AskRequest, AskResponse, AskSource
+from app.schemas.ask import AskAction, AskRequest, AskResponse, AskSource
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
 
 EmbedderDep = Annotated[Embedder, Depends(get_embedder)]
-LLMDep = Annotated[LLM, Depends(get_llm)]
+LLMDep = Annotated[AgentLLM, Depends(get_llm)]
 
 WINDOW = timedelta(hours=1)
 
@@ -47,10 +48,11 @@ def ask(
 ) -> AskResponse:
     _check_rate_limit(db, user)
     started = time.perf_counter()
+    ctx = ToolContext(db=db, embedder=embedder, is_admin=user.role == "admin")
+    history = [Turn(t.role, t.content) for t in body.history]
 
     try:
-        retrieval = retrieve(db, body.question, embedder, is_admin=user.role == "admin")
-        answer = answer_question(body.question, retrieval, llm)
+        answer = run_agent(body.question, history, ctx, llm)
     except Exception:
         log.exception("ask failed for user %s", user.id)
         db.rollback()
@@ -75,8 +77,10 @@ def ask(
             question=body.question,
             answer=answer.text,
             model=answer.model,
-            retrieved_chunk_ids=[c.chunk_id for c in retrieval.chunks],
-            cited_document_ids=[s.document_id for s in answer.sources],
+            retrieved_chunk_ids=answer.retrieved_chunk_ids,
+            cited_document_ids=[c.document_id for c in answer.sources],
+            tool_calls=answer.tool_calls,
+            general_knowledge=answer.general_knowledge,
             prompt_tokens=answer.prompt_tokens,
             completion_tokens=answer.completion_tokens,
             cost_usd=answer.cost_usd,
@@ -87,19 +91,22 @@ def ask(
     db.commit()
 
     return AskResponse(
-        status=answer.status,
+        status="answered",
         answer=answer.text,
         sources=[
             AskSource(
-                n=s.n,
-                document_id=s.document_id,
-                title=s.title,
-                filename=s.filename,
-                snippet=s.snippet,
-                page_number=s.page_number,
+                n=c.n,
+                document_id=c.document_id,
+                title=c.title,
+                filename=c.filename,
+                snippet=c.snippet,
+                page_number=c.page_number,
             )
-            for s in answer.sources
+            for c in answer.sources
         ],
+        general_knowledge=answer.general_knowledge,
+        actions=[AskAction(**a) for a in answer.actions],
+        checked=answer.checked,
     )
 
 

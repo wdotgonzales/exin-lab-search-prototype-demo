@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it } from 'vitest'
@@ -22,6 +22,9 @@ const ANSWER: AskResponse = {
       page_number: null,
     },
   ],
+  general_knowledge: false,
+  actions: [],
+  checked: ['Searched passages'],
 }
 
 function Where() {
@@ -56,12 +59,10 @@ describe('ChatLauncher', () => {
   it('opens on an empty chat with example questions', () => {
     renderChat()
     expect(screen.getByRole('heading', { name: "Ask about the lab's documents" })).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'What virus batch was used in EXP-007?' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'What was uploaded this week?' })).toBeInTheDocument()
   })
 
-  it('shows the question, then the answer with its source card', async () => {
+  it('shows the question, then the answer with its source card and what was checked', async () => {
     server.use(http.post('/api/ask', () => HttpResponse.json(ANSWER)))
     renderChat()
 
@@ -76,6 +77,8 @@ describe('ChatLauncher', () => {
       'href',
       '/api/documents/a30a6044-160a-45b5-bc5b-a71ac1c0fc01/file',
     )
+    expect(screen.getByText('Searched passages')).toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument() // not general knowledge
   })
 
   it('"Show in list" opens Documents filtered to that file', async () => {
@@ -90,13 +93,78 @@ describe('ChatLauncher', () => {
     ).toBeInTheDocument()
   })
 
+  it('labels general knowledge and offers the suggested actions', async () => {
+    server.use(
+      http.post('/api/ask', () =>
+        HttpResponse.json({
+          ...ANSWER,
+          answer: 'A DREADD is an engineered receptor.',
+          sources: [],
+          general_knowledge: true,
+          checked: [],
+          actions: [
+            {
+              type: 'open_document',
+              label: 'Open the interim report',
+              document_id: 'ad1b2898-b5a3-428d-80a2-e1ee9fcb6996',
+              query: null,
+            },
+            { type: 'show_in_list', label: 'Show EXP-007 files', document_id: null, query: 'EXP-007' },
+          ],
+        }),
+      ),
+    )
+    renderChat()
+    ask('What is a DREADD?')
+
+    expect(await screen.findByRole('note')).toHaveTextContent(
+      "General knowledge, not from your lab's documents",
+    )
+    expect(screen.getByRole('link', { name: /Open the interim report/ })).toHaveAttribute(
+      'href',
+      '/api/documents/ad1b2898-b5a3-428d-80a2-e1ee9fcb6996/file',
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Show EXP-007 files/ }))
+    expect(await screen.findByText('at /documents?q=EXP-007')).toBeInTheDocument()
+  })
+
+  it('sends the conversation so follow-ups work', async () => {
+    const bodies: unknown[] = []
+    server.use(
+      http.post('/api/ask', async ({ request }) => {
+        bodies.push(await request.json())
+        return HttpResponse.json(ANSWER)
+      }),
+    )
+    renderChat()
+    ask('What happened to M-045?')
+    await screen.findByText(/Its window clouded/)
+
+    ask('explain that to a beginner')
+    await screen.findByText('explain that to a beginner')
+
+    await waitFor(() => expect(screen.getAllByText(/Its window clouded/)).toHaveLength(2))
+    expect(bodies).toEqual([
+      { question: 'What happened to M-045?', history: [] },
+      {
+        question: 'explain that to a beginner',
+        history: [
+          { role: 'user', content: 'What happened to M-045?' },
+          { role: 'assistant', content: ANSWER.answer },
+        ],
+      },
+    ])
+  })
+
   it('says so when nothing was found', async () => {
     server.use(
       http.post('/api/ask', () =>
         HttpResponse.json({
+          ...ANSWER,
           status: 'no_sources',
           answer: "I couldn't find this in the uploaded documents.",
           sources: [],
+          checked: [],
         }),
       ),
     )
@@ -154,5 +222,29 @@ describe('ChatLauncher', () => {
 
     expect(screen.getByRole('heading', { name: "Ask about the lab's documents" })).toBeInTheDocument()
     expect(screen.queryByText('What happened to M-045?')).not.toBeInTheDocument()
+  })
+
+  it('shows many sources as compact rows', async () => {
+    const sources = [1, 2, 3, 4].map((n) => ({
+      ...ANSWER.sources[0],
+      n,
+      document_id: `00000000-0000-0000-0000-00000000000${n}`,
+      title: `weekly summary ${n}`,
+      filename: `weekly_${n}.md`,
+    }))
+    server.use(
+      http.post('/api/ask', () =>
+        HttpResponse.json({ ...ANSWER, answer: 'Four files [1][2][3][4].', sources }),
+      ),
+    )
+    renderChat()
+    ask('What was uploaded this week?')
+
+    expect(await screen.findAllByRole('article')).toHaveLength(4)
+    expect(screen.queryByText(/the window over left mPFC/)).not.toBeInTheDocument() // no snippets
+    expect(screen.getByRole('link', { name: 'Open weekly summary 2' })).toHaveAttribute(
+      'href',
+      '/api/documents/00000000-0000-0000-0000-000000000002/file',
+    )
   })
 })

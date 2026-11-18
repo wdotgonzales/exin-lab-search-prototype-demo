@@ -1,18 +1,23 @@
-import { AlertCircle, ArrowUp, Clock } from 'lucide-react'
+import { AlertCircle, ArrowUp, Clock, ExternalLink, Info, List } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { SheetDescription, SheetTitle } from '@/components/ui/sheet'
 
+import type { AskAction } from './api'
 import { AnswerText } from './AnswerText'
 import { SourceCard } from './SourceCard'
 import type { ChatMessage, useChat } from './useChat'
 
+// More sources than this are shown as one-line rows, so the answer stays readable.
+const COMPACT_AFTER = 3
+
 const EXAMPLES = [
+  'What was uploaded this week?',
+  'Summarize each document about EXP-007',
   'Which animal had a problem with its imaging window?',
-  'What virus batch was used in EXP-007?',
-  'What did we decide in the lab meeting on 22 Oct?',
+  'Write a short email summarizing where EXP-007 stands',
 ]
 
 type Props = {
@@ -45,6 +50,10 @@ export function ChatPanel({ chat, onClose }: Props) {
     onClose()
   }
 
+  function runAction(action: AskAction) {
+    if (action.type === 'show_in_list') showInList(action.query)
+  }
+
   function cite(messageId: number, n: number) {
     document
       .getElementById(sourceId(messageId, n))
@@ -57,7 +66,7 @@ export function ChatPanel({ chat, onClose }: Props) {
         <div className="flex min-w-0 flex-col gap-0.5">
           <SheetTitle className="text-[15px]">Lab assistant</SheetTitle>
           <SheetDescription className="text-xs">
-            Answers only from the uploaded documents
+            Answers from your lab's documents
           </SheetDescription>
         </div>
         <Button
@@ -86,6 +95,7 @@ export function ChatPanel({ chat, onClose }: Props) {
               onCite={(n) => cite(message.id, n)}
               onRetry={() => chat.retry(message.id)}
               onShowInList={showInList}
+              onAction={runAction}
             />
           ))
         )}
@@ -126,7 +136,7 @@ export function ChatPanel({ chat, onClose }: Props) {
                 submit()
               }
             }}
-            placeholder="Ask about mice, viruses, experiments or a document…"
+            placeholder="Ask anything about the lab's documents…"
             className="flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
           />
           <Button
@@ -157,8 +167,8 @@ function EmptyState({ onPick }: { onPick: (question: string) => void }) {
       <div className="flex flex-col gap-2">
         <h3 className="font-serif text-3xl leading-tight">Ask about the lab's documents</h3>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Find which file holds something, or get an answer with the sources it came from. Lab
-          IDs like M-042 or EXP-007 work too.
+          Ask about what the files say, what was uploaded, or a lab ID like M-042. It can also
+          summarize, draft notes and explain methods.
         </p>
       </div>
       <div className="flex flex-col gap-2">
@@ -184,9 +194,10 @@ type MessageProps = {
   onCite: (n: number) => void
   onRetry: () => void
   onShowInList: (filename: string) => void
+  onAction: (action: AskAction) => void
 }
 
-function Message({ message, pending, onCite, onRetry, onShowInList }: MessageProps) {
+function Message({ message, pending, onCite, onRetry, onShowInList, onAction }: MessageProps) {
   if (message.role === 'user') {
     return (
       <div className="max-w-[82%] self-end rounded-2xl rounded-br-sm bg-muted px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line">
@@ -249,15 +260,71 @@ function Message({ message, pending, onCite, onRetry, onShowInList }: MessagePro
 
   return (
     <div className="flex flex-col gap-3">
+      {message.generalKnowledge && (
+        <p
+          role="note"
+          className="inline-flex items-center gap-1.5 self-start rounded-full border border-sky-500/35 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-800 dark:text-sky-200"
+        >
+          <Info aria-hidden="true" className="size-3.5" />
+          General knowledge, not from your lab's documents
+        </p>
+      )}
       <AnswerText text={message.text} onCite={onCite} />
-      {message.sources.map((source) => (
-        <SourceCard
-          key={source.n}
-          id={sourceId(message.id, source.n)}
-          source={source}
-          onShowInList={onShowInList}
-        />
-      ))}
+      <div className="flex flex-col gap-2">
+        {message.sources.map((source) => (
+          <SourceCard
+            key={source.n}
+            id={sourceId(message.id, source.n)}
+            source={source}
+            onShowInList={onShowInList}
+            compact={message.sources.length > COMPACT_AFTER}
+          />
+        ))}
+      </div>
+      {message.checked.length > 0 && (
+        <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span>Checked:</span>
+          {message.checked.map((item) => (
+            <span key={item} className="rounded-full border px-2 py-0.5">
+              {item}
+            </span>
+          ))}
+        </p>
+      )}
+      {message.actions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {message.actions.map((action) => (
+            <ActionButton key={action.label} action={action} onAction={onAction} />
+          ))}
+        </div>
+      )}
     </div>
+  )
+}
+
+/** A suggested next step. It only runs when the user clicks it. */
+function ActionButton({
+  action,
+  onAction,
+}: {
+  action: AskAction
+  onAction: (action: AskAction) => void
+}) {
+  const className = 'border-primary/50 bg-primary/10 hover:bg-primary/20'
+  if (action.type === 'open_document') {
+    return (
+      <Button variant="outline" size="sm" className={className} asChild>
+        <a href={`/api/documents/${action.document_id}/file`} target="_blank" rel="noopener noreferrer">
+          <ExternalLink aria-hidden="true" />
+          {action.label}
+        </a>
+      </Button>
+    )
+  }
+  return (
+    <Button variant="outline" size="sm" className={className} onClick={() => onAction(action)}>
+      <List aria-hidden="true" />
+      {action.label}
+    </Button>
   )
 }

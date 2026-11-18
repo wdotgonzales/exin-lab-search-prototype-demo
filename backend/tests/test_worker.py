@@ -5,6 +5,7 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import delete, func, select
 
+from app.chat.llm import Completion
 from app.core.storage import LocalStorage
 from app.db import SessionLocal
 from app.ingest.embedder import FakeEmbedder
@@ -184,3 +185,36 @@ def test_two_workers_never_get_the_same_job():
         with SessionLocal() as cleanup:
             cleanup.execute(delete(Job).where(Job.id.in_(ids)))
             cleanup.commit()
+
+
+class SummaryLLM:
+    model = "fake-summary"
+
+    def complete(self, instructions: str, prompt: str) -> Completion:
+        return Completion(
+            "Notes about M-042 and EXP-007.", input_tokens=1, output_tokens=1
+        )
+
+
+class BrokenSummaryLLM(SummaryLLM):
+    def complete(self, instructions: str, prompt: str) -> Completion:
+        raise ConnectionError("OpenAI is down")
+
+
+def test_indexing_writes_a_summary(db_session, storage):
+    doc, _ = add_document(db_session, storage)
+
+    run_once(db_session, storage, FakeEmbedder(), SummaryLLM())
+
+    db_session.refresh(doc)
+    assert (doc.status, doc.summary) == ("indexed", "Notes about M-042 and EXP-007.")
+
+
+def test_a_failed_summary_does_not_fail_indexing(db_session, storage):
+    doc, job = add_document(db_session, storage)
+
+    run_once(db_session, storage, FakeEmbedder(), BrokenSummaryLLM())
+
+    db_session.refresh(doc)
+    db_session.refresh(job)
+    assert (doc.status, doc.summary, job.status) == ("indexed", None, "succeeded")
