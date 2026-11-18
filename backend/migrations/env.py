@@ -1,3 +1,4 @@
+from pgvector.sqlalchemy import Vector
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -72,6 +73,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        connection.dialect.ischema_names["vector"] = Vector
         context.configure(
             connection=connection, target_metadata=target_metadata
         )
