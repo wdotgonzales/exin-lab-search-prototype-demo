@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Upload limits
     max_file_mb: int = 25
     max_files_per_upload: int = 20
+
+    # Embeddings (worker now, chat later). "fake" = no key, no cost, no meaning.
+    embedding_backend: Literal["openai", "fake"] = "fake"
+    openai_api_key: SecretStr | None = None
+    embedding_model: str = "text-embedding-3-small"
 
 
 @lru_cache

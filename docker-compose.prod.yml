@@ -13,6 +13,17 @@ services:
       retries: 3
       start_period: 10s
 
+  worker:
+    # Same image as the API, different command: processes the upload queue.
+    image: ${API_IMAGE:-exin-api:local}
+    build: ./backend
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - path: .env.prod
+        required: false
+    restart: unless-stopped
+    stop_grace_period: 30s # let the current job finish on deploy
+
   nginx:
     image: ${WEB_IMAGE:-exin-web:local}
     build:
