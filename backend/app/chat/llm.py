@@ -6,7 +6,7 @@ dependency override, so no AI call is ever made in CI.
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Protocol
+from typing import Any, Protocol
 
 from openai import OpenAI
 
@@ -24,6 +24,34 @@ class LLM(Protocol):
     model: str
 
     def complete(self, instructions: str, prompt: str) -> Completion: ...
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    call_id: str
+    name: str
+    arguments: str  # JSON text
+
+
+@dataclass(frozen=True)
+class AgentStep:
+    text: str  # the final JSON reply; empty while the model is calling tools
+    tool_calls: list[ToolCall]
+    output_items: list[Any]  # passed back to the model in the next round
+    input_tokens: int
+    output_tokens: int
+
+
+class AgentLLM(Protocol):
+    model: str
+
+    def step(
+        self,
+        instructions: str,
+        items: list[Any],
+        tools: list[dict[str, Any]] | None,
+        schema: dict[str, Any],
+    ) -> AgentStep: ...
 
 
 class OpenAILLM:
@@ -47,9 +75,48 @@ class OpenAILLM:
             output_tokens=usage.output_tokens if usage else 0,
         )
 
+    def step(
+        self,
+        instructions: str,
+        items: list[Any],
+        tools: list[dict[str, Any]] | None,
+        schema: dict[str, Any],
+    ) -> AgentStep:
+        """One round of the agent: the model either calls tools or answers."""
+        extra: dict[str, Any] = {"tools": tools} if tools else {}
+        response = self._client.responses.create(
+            model=self.model,
+            instructions=instructions,
+            input=items,
+            reasoning={"effort": self._effort},
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "lab_answer",
+                    "schema": schema,
+                    "strict": True,
+                }
+            },
+            max_output_tokens=4000,
+            **extra,
+        )
+        calls = [
+            ToolCall(item.call_id, item.name, item.arguments)
+            for item in response.output
+            if item.type == "function_call"
+        ]
+        usage = response.usage
+        return AgentStep(
+            text="" if calls else response.output_text,
+            tool_calls=calls,
+            output_items=list(response.output),
+            input_tokens=usage.input_tokens if usage else 0,
+            output_tokens=usage.output_tokens if usage else 0,
+        )
+
 
 @lru_cache
-def get_llm() -> LLM:
+def get_llm() -> OpenAILLM:
     settings = get_settings()
     key = settings.openai_api_key.get_secret_value() if settings.openai_api_key else ""
     if not key:
