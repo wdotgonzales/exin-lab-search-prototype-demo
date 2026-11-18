@@ -9,3 +9,11 @@ afterEach(() => {
   cleanup()
 })
 afterAll(() => server.close())
+
+// jsdom has no ResizeObserver; Radix tooltips and popovers need one to measure.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver
