@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     embedding_backend: Literal["openai", "fake"] = "fake"
     openai_api_key: SecretStr | None = None
     embedding_model: str = "text-embedding-3-small"
+    chat_model: str = "gpt-6-luna"
 
 
 @lru_cache
