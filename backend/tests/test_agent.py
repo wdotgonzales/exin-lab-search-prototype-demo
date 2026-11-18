@@ -100,7 +100,7 @@ def test_catalogue_date_and_history_are_sent(db_session):
     assert "[1] window incident | window_incident.md | md" in sent["instructions"]
     assert sent["items"] == [
         {"role": "user", "content": "What virus was used in EXP-007?"},
-        {"role": "assistant", "content": "V-017 [1]."},
+        {"role": "assistant", "content": "V-017."},  # old [1] removed
         {"role": "user", "content": "explain that to a beginner"},
     ]
     assert sent["tools"]  # tools are offered
@@ -206,3 +206,21 @@ def test_catalogue_answers_still_say_what_was_checked(db_session):
 
     assert answer.checked == ["Document catalogue"]
     assert [c.title for c in answer.sources] == ["window incident"]
+
+
+def test_old_citation_numbers_are_removed_from_history(db_session):
+    llm = ScriptedLLM(final("ok"))
+    history = [
+        Turn("user", "What virus was used in EXP-007? See [2]."),
+        Turn("assistant", "EXP-007 used V-017 [1]. It was injected in C-07 [1, 3]."),
+    ]
+
+    run_agent("explain that", history, context(db_session), llm)
+
+    assert llm.calls[0]["items"][:2] == [
+        {"role": "user", "content": "What virus was used in EXP-007? See [2]."},
+        {
+            "role": "assistant",
+            "content": "EXP-007 used V-017. It was injected in C-07.",
+        },
+    ]
