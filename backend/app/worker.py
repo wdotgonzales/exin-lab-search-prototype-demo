@@ -24,12 +24,15 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.chat.llm import LLM, get_llm
+from app.config import get_settings
 from app.core.storage import Storage, get_storage
 from app.db import SessionLocal
 from app.ingest.chunking import chunk_sections
 from app.ingest.embedder import Embedder, get_embedder
 from app.ingest.extract import ExtractionError, extract
 from app.ingest.lab_ids import find_lab_ids
+from app.ingest.summary import summarize
 from app.models import Chunk, Document, DocumentEntity, Entity, Job
 
 log = logging.getLogger("app.worker")
@@ -71,7 +74,9 @@ def claim_job(db: Session) -> Job | None:
 # ── processing ──────────────────────────────────────────────────
 
 
-def run_once(db: Session, storage: Storage, embedder: Embedder) -> bool:
+def run_once(
+    db: Session, storage: Storage, embedder: Embedder, llm: LLM | None = None
+) -> bool:
     """Process one job. Returns False when there was nothing to do."""
     job = claim_job(db)
     if job is None:
@@ -81,7 +86,7 @@ def run_once(db: Session, storage: Storage, embedder: Embedder) -> bool:
     try:
         if job.job_type != "ingest_document":
             raise ExtractionError(f"Unsupported job type: {job.job_type}")
-        ingest_document(db, job, storage, embedder)
+        ingest_document(db, job, storage, embedder, llm)
     except ExtractionError as exc:
         log.info("job %s: file can't be indexed: %s", job_id, exc)
         _record_failure(db, job_id, str(exc), user_message=str(exc), retry=False)
@@ -92,7 +97,7 @@ def run_once(db: Session, storage: Storage, embedder: Embedder) -> bool:
 
 
 def ingest_document(
-    db: Session, job: Job, storage: Storage, embedder: Embedder
+    db: Session, job: Job, storage: Storage, embedder: Embedder, llm: LLM | None = None
 ) -> None:
     doc = db.get(Document, uuid.UUID(job.payload["document_id"]))
     if doc is None:  # deleted after upload: nothing to do
@@ -108,6 +113,8 @@ def ingest_document(
     drafts = chunk_sections(sections)
     vectors = embedder.embed([d.content for d in drafts])
     lab_ids = find_lab_ids("\n".join(s.text for s in sections))
+    text = "\n\n".join(s.text for s in sections)
+    summary = summarize(llm, doc.title, text) if llm else None
 
     # Replace, never append: re-indexing must not create duplicates.
     db.execute(delete(Chunk).where(Chunk.document_id == doc.id))
@@ -151,6 +158,9 @@ def ingest_document(
         )
 
     doc.status = "indexed"
+
+    if summary:  # a failed summary keeps the old one
+        doc.summary = summary
     doc.indexed_at = func.now()
     _succeed(job)
     db.commit()
@@ -226,7 +236,13 @@ def main() -> None:
         signal.signal(sig, lambda *_: stop.set())
 
     storage, embedder = get_storage(), get_embedder()
-    log.info("worker started (embedder: %s)", embedder.model)
+
+    llm = None if get_settings().embedding_backend == "fake" else get_llm()
+    log.info(
+        "worker started (embedder: %s, summaries: %s)",
+        embedder.model,
+        llm.model if llm else "off",
+    )
     last_sweep = 0.0
     while not stop.is_set():
         worked = False
@@ -236,7 +252,7 @@ def main() -> None:
                     if count := requeue_stale(db):
                         log.warning("requeued %d stale job(s)", count)
                     last_sweep = time.monotonic()
-                worked = run_once(db, storage, embedder)
+                worked = run_once(db, storage, embedder, llm)
         except Exception:  # e.g. the database is briefly unreachable
             log.exception("worker loop error; retrying shortly")
         if not worked:
