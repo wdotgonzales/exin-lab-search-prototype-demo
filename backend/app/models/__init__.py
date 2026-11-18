@@ -1,3 +1,4 @@
+from app.models.ai_query import AiQuery
 from app.models.audit_log import AuditLog
 from app.models.chunk import Chunk
 from app.models.document import Document
@@ -8,6 +9,7 @@ from app.models.source import Source
 from app.models.user import User
 
 __all__ = [
+    "AiQuery",
     "AuditLog",
     "Chunk",
     "Document",
