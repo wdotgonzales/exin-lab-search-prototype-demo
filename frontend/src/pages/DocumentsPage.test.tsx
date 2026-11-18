@@ -51,9 +51,9 @@ describe('DocumentsPage', () => {
     renderPage()
 
     expect(await screen.findByText('V-017 virus QC report')).toBeInTheDocument()
-    expect(screen.getByText('Queued')).toBeInTheDocument()
-    expect(screen.getByText('Ready')).toBeInTheDocument()
-    expect(screen.getByText('Failed')).toHaveAttribute('title', 'No text found')
+    expect(screen.getByText('Waiting to index')).toBeInTheDocument()
+    expect(screen.getByText('Searchable')).toBeInTheDocument()
+    expect(screen.getByText("Can't read file")).toBeInTheDocument()
     expect(screen.getByText('3 files')).toBeInTheDocument()
   })
 
@@ -105,5 +105,24 @@ describe('DocumentsPage', () => {
     serve('admin')
     renderPage()
     expect(await screen.findByRole('button', { name: /upload files/i })).toBeInTheDocument()
+  })
+  it('explains a failed file in its tooltip', async () => {
+    serve('viewer')
+    renderPage()
+
+    fireEvent.focus(await screen.findByRole('button', { name: "Can't read file" }))
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('No text found')
+  })
+
+  it('explains every status in the legend', async () => {
+    serve('viewer')
+    renderPage()
+    await screen.findByText('C-07 surgery log')
+
+    fireEvent.click(screen.getByRole('button', { name: 'What do the search statuses mean?' }))
+
+    expect(await screen.findByText('The assistant can find and cite this file.')).toBeInTheDocument()
+    expect(screen.getByText(/Uploading only stores the file/)).toBeInTheDocument()
   })
 })

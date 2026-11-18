@@ -17,6 +17,7 @@ import { useMe } from '@/features/auth/useAuth'
 import { formatBytes, formatDate } from '@/features/documents/format'
 import { Pagination } from '@/features/documents/Pagination'
 import { StatusBadge } from '@/features/documents/StatusBadge'
+import { StatusLegend } from '@/features/documents/StatusLegend'
 import { UploadDialog } from '@/features/documents/UploadDialog'
 import { UploadPanel } from '@/features/documents/UploadPanel'
 import { PAGE_SIZE, useDocuments } from '@/features/documents/useDocuments'
@@ -137,7 +138,12 @@ export function DocumentsPage() {
                   <TableHead className={COLUMNS_HIDDEN_ON_PHONES}>Size</TableHead>
                   <TableHead className={COLUMNS_HIDDEN_ON_PHONES}>Uploaded by</TableHead>
                   <TableHead className={COLUMNS_HIDDEN_ON_PHONES}>Added</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>
+                    <span className="inline-flex items-center gap-1">
+                      Search status
+                      <StatusLegend />
+                    </span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

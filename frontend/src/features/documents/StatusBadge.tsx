@@ -1,27 +1,46 @@
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
+import { STATUS_INFO } from './status'
 import type { DocumentStatus } from './useDocuments'
 
-const STYLES: Record<DocumentStatus, { label: string; badge: string; dot: string }> = {
-  pending: { label: 'Queued', badge: 'border-border text-muted-foreground', dot: 'bg-muted-foreground' },
-  processing: { label: 'Processing', badge: 'border-primary/40 bg-primary/15 text-primary', dot: 'bg-primary' },
-  // mouse green from our palette
-  indexed: { label: 'Ready', badge: 'border-[#A9D1B9]/35 bg-[#A9D1B9]/12 text-[#A9D1B9]', dot: 'bg-[#A9D1B9]' },
-  failed: { label: 'Failed', badge: 'border-destructive/40 bg-destructive/12 text-destructive', dot: 'bg-destructive' },
+const PILL =
+  'inline-flex h-6 w-fit items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium whitespace-nowrap'
+
+/** The badge on its own (used in the legend). */
+export function StatusPill({ status }: { status: DocumentStatus }) {
+  const s = STATUS_INFO[status]
+  return (
+    <span className={cn(PILL, s.badge)}>
+      <span aria-hidden="true" className={cn('size-1.5 rounded-full', s.dot)} />
+      {s.label}
+    </span>
+  )
 }
 
+/** The badge in the table: hover or keyboard focus shows what it means. */
 export function StatusBadge({ status, error }: { status: DocumentStatus; error?: string | null }) {
-  const style = STYLES[status]
+  const s = STATUS_INFO[status]
+  const detail = status === 'failed' && error ? error : s.hint
   return (
-    <span
-      title={status === 'failed' && error ? error : undefined}
-      className={cn(
-        'inline-flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium whitespace-nowrap',
-        style.badge,
-      )}
-    >
-      <span aria-hidden="true" className={cn('size-1.5 rounded-full', style.dot)} />
-      {style.label}
-    </span>
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+      <TooltipTrigger asChild>
+        <button type="button" className={cn(PILL, 'cursor-default', s.badge)}>
+          <span aria-hidden="true" className={cn('size-1.5 rounded-full', s.dot)} />
+          {s.label}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="left" className="max-w-64">
+        <p className="font-medium">{s.label}</p>
+        <p className="opacity-80">{detail}</p>
+      </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }
