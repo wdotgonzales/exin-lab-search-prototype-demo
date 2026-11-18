@@ -32,7 +32,14 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   })
 
   const text = await res.text()
-  const body: unknown = text ? JSON.parse(text) : null
+  let body: unknown = null
+  if (text) {
+    try {
+      body = JSON.parse(text)
+    } catch {
+      body = text // e.g. an HTML 502 page from nginx
+    }
+  }
 
   if (!res.ok) {
     throw new ApiError(res.status, messageFrom(body, `Request failed (${res.status})`), body)
