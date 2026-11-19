@@ -95,11 +95,11 @@ describe('DocumentsPage', () => {
     expect(await screen.findByText('Showing 21–25 of 25')).toBeInTheDocument()
   })
 
-  it('shows the upload button to admins only', async () => {
+  it('shows the upload button to every user', async () => {
     serve('viewer')
     const { unmount } = renderPage()
     await screen.findByText('C-07 surgery log')
-    expect(screen.queryByRole('button', { name: /upload files/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /upload files/i })).toBeInTheDocument()
     unmount()
 
     serve('admin')

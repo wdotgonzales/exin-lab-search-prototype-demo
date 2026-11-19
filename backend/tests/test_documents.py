@@ -56,9 +56,9 @@ def test_list_requires_login(client):
     assert client.get("/api/documents").status_code == 401
 
 
-def test_viewer_cannot_upload(client, sign_in, storage):
+def test_viewer_can_upload(client, sign_in, storage):
     sign_in("viewer")
-    assert upload(client, ("a.pdf", pdf(1))).status_code == 403
+    assert upload(client, ("a.pdf", pdf(1))).status_code == 202
 
 
 def test_upload_writes_document_job_audit_and_file(

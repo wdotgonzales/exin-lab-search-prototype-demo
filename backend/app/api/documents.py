@@ -16,7 +16,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api.deps import AdminUser, CurrentUser, DbSession, client_ip
+from app.api.deps import CurrentUser, DbSession, client_ip
 from app.config import get_settings
 from app.core import audit
 from app.core.files import CONTENT_TYPES, FileRejected, check_file
@@ -102,7 +102,7 @@ def list_documents(
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 def upload_documents(
-    admin: AdminUser,
+    user: CurrentUser,
     request: Request,
     db: DbSession,
     storage: StorageDep,
@@ -171,7 +171,7 @@ def upload_documents(
                     file_type=checked.file_type,
                     size_bytes=checked.size_bytes,
                     content_hash=checked.sha256,
-                    uploaded_by=admin.id,
+                    uploaded_by=user.id,
                 )
             )
             db.add(
@@ -183,8 +183,8 @@ def upload_documents(
             audit.record(
                 db,
                 "document.upload",
-                actor_user_id=admin.id,
-                actor_email=admin.email,
+                actor_user_id=user.id,
+                actor_email=user.email,
                 target_type="document",
                 target_id=str(document_id),
                 target_label=checked.filename,
