@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 import { ExtractedText } from './ExtractedText'
+import { TableViewer } from './TableViewer'
 import type { DocumentDetail } from './useDocument'
 import { useDocumentContentText } from './useDocumentContent'
 
@@ -11,7 +12,7 @@ import { useDocumentContentText } from './useDocumentContent'
 const MarkdownViewer = lazy(() => import('./MarkdownViewer'))
 const DocxViewer = lazy(() => import('./DocxViewer'))
 
-const PREVIEWABLE = new Set(['pdf', 'docx', 'md', 'txt'])
+const PREVIEWABLE = new Set(['pdf', 'docx', 'xlsx', 'csv', 'md', 'txt'])
 
 function TextViewer({ id }: { id: string }) {
   const { data, isPending, isError, error } = useDocumentContentText(id)
@@ -47,6 +48,9 @@ function Preview({ doc }: { doc: DocumentDetail }) {
           <DocxViewer id={doc.id} />
         </Suspense>
       )
+    case 'xlsx':
+    case 'csv':
+      return <TableViewer id={doc.id} />
     case 'txt':
       return <TextViewer id={doc.id} />
     default:
