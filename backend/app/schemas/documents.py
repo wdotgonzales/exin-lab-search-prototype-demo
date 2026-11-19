@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class DocumentOut(BaseModel):
@@ -41,3 +41,12 @@ class UploadResult(BaseModel):
     accepted: list[UploadAccepted] = []
     skipped: list[UploadSkipped] = []
     rejected: list[UploadRejected] = []
+
+
+class DeleteRequest(BaseModel):
+    document_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
+
+
+class DeleteResult(BaseModel):
+    deleted: list[uuid.UUID]
+    not_found: list[uuid.UUID]

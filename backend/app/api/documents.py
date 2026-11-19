@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import Annotated
 
@@ -13,10 +14,10 @@ from fastapi import (
     status,
 )
 from fastapi.responses import RedirectResponse
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api.deps import CurrentUser, DbSession, client_ip
+from app.api.deps import AdminUser, CurrentUser, DbSession, client_ip
 from app.config import get_settings
 from app.core import audit
 from app.core.files import CONTENT_TYPES, FileRejected, check_file
@@ -24,6 +25,8 @@ from app.core.storage import Storage, get_storage, inline_disposition
 from app.models import Document, Job, Source, User
 from app.models.source import UPLOAD_SOURCE_NAME
 from app.schemas.documents import (
+    DeleteRequest,
+    DeleteResult,
     DocumentList,
     DocumentOut,
     UploadAccepted,
@@ -32,6 +35,7 @@ from app.schemas.documents import (
     UploadSkipped,
 )
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 StorageDep = Annotated[Storage, Depends(get_storage)]
@@ -229,4 +233,55 @@ def open_file(
         content=storage.read(doc.external_path),
         media_type=CONTENT_TYPES[doc.file_type],
         headers={"Content-Disposition": inline_disposition(filename)},
+    )
+
+
+@router.post("/delete")
+def delete_documents(
+    admin: AdminUser,
+    body: DeleteRequest,
+    request: Request,
+    db: DbSession,
+    storage: StorageDep,
+) -> DeleteResult:
+    """Hard delete: rows (chunks and lab-ID links cascade), audit rows, then files."""
+    ids = list(dict.fromkeys(body.document_ids))  # drop duplicates, keep order
+    docs = db.scalars(select(Document).where(Document.id.in_(ids))).all()
+    found = {doc.id for doc in docs}
+    ip = client_ip(request)
+
+    for doc in docs:
+        audit.record(
+            db,
+            "document.delete",
+            actor_user_id=admin.id,
+            actor_email=admin.email,
+            target_type="document",
+            target_id=str(doc.id),
+            target_label=doc.external_path.rsplit("/", 1)[-1],
+            metadata={
+                "title": doc.title,
+                "file_type": doc.file_type,
+                "size_bytes": doc.size_bytes,
+                "content_hash": doc.content_hash,
+                "uploaded_by": str(doc.uploaded_by) if doc.uploaded_by else None,
+                "storage_key": doc.external_path,
+            },
+            ip_address=ip,
+        )
+    keys = [doc.external_path for doc in docs]
+    if found:
+        db.execute(delete(Document).where(Document.id.in_(found)))
+    db.commit()
+
+    # After the commit: a storage failure leaves an orphan file, never a broken row.
+    for key in keys:
+        try:
+            storage.delete(key)
+        except Exception:
+            log.exception("could not delete %s from storage", key)
+
+    return DeleteResult(
+        deleted=[i for i in ids if i in found],
+        not_found=[i for i in ids if i not in found],
     )

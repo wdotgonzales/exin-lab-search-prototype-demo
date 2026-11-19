@@ -172,3 +172,53 @@ def test_get_one_and_open_file(client, sign_in, storage):
     assert file.headers["content-disposition"].startswith("inline;")
 
     assert client.get(f"/api/documents/{uuid.uuid4()}").status_code == 404
+
+
+def delete_docs(client, ids):
+    return client.post(
+        "/api/documents/delete", json={"document_ids": [str(i) for i in ids]}
+    )
+
+
+def test_admin_hard_deletes_rows_files_and_audits(client, db_session, sign_in, storage):
+    admin = sign_in("admin")
+    body = upload(client, ("a.pdf", pdf(1)), ("b.pdf", pdf(2))).json()
+    ids = [uuid.UUID(a["document_id"]) for a in body["accepted"]]
+    paths = [db_session.get(Document, i).external_path for i in ids]
+    missing = uuid.uuid4()
+
+    resp = delete_docs(client, [*ids, missing])
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "deleted": [str(i) for i in ids],
+        "not_found": [str(missing)],
+    }
+    db_session.expire_all()
+    for doc_id, path in zip(ids, paths, strict=True):
+        assert db_session.get(Document, doc_id) is None
+        with pytest.raises(FileNotFoundError):
+            storage.read(path)
+        log = db_session.scalar(
+            select(AuditLog).where(
+                AuditLog.target_id == str(doc_id), AuditLog.action == "document.delete"
+            )
+        )
+        assert log.actor_email == admin.email
+        assert log.target_label == path.rsplit("/", 1)[-1]
+
+
+def test_viewer_cannot_delete(client, db_session, sign_in, storage):
+    sign_in("viewer")
+    body = upload(client, ("a.pdf", pdf(1))).json()
+    doc_id = uuid.UUID(body["accepted"][0]["document_id"])
+
+    assert delete_docs(client, [doc_id]).status_code == 403
+    db_session.expire_all()
+    assert db_session.get(Document, doc_id) is not None
+
+
+def test_delete_needs_1_to_50_ids(client, sign_in, storage):
+    sign_in("admin")
+    assert delete_docs(client, []).status_code == 422
+    assert delete_docs(client, [uuid.uuid4() for _ in range(51)]).status_code == 422
