@@ -22,13 +22,21 @@ from app.config import get_settings
 from app.core import audit
 from app.core.files import CONTENT_TYPES, FileRejected, check_file
 from app.core.storage import Storage, get_storage, inline_disposition
-from app.models import Document, Job, Source, User
+from app.core.tables import TableError, read_table
+from app.ingest.extract import ExtractionError, extract
+from app.models import Chunk, Document, DocumentEntity, Entity, Job, Source, User
 from app.models.source import UPLOAD_SOURCE_NAME
 from app.schemas.documents import (
     DeleteRequest,
     DeleteResult,
+    DocumentDetail,
     DocumentList,
     DocumentOut,
+    DocumentTable,
+    DocumentText,
+    LabIdOut,
+    TableSheet,
+    TextSection,
     UploadAccepted,
     UploadRejected,
     UploadResult,
@@ -214,10 +222,29 @@ def upload_documents(
 @router.get("/{document_id}")
 def get_document(
     document_id: uuid.UUID, db: DbSession, user: CurrentUser
-) -> DocumentOut:
+) -> DocumentDetail:
     doc = _get_or_404(db, document_id)
     uploader = db.get(User, doc.uploaded_by) if doc.uploaded_by else None
-    return _out(doc, uploader.full_name if uploader else None)
+    passages = db.scalar(
+        select(func.count()).select_from(Chunk).where(Chunk.document_id == doc.id)
+    )
+    lab_ids = db.execute(
+        select(Entity.code, Entity.entity_type, DocumentEntity.mention_count)
+        .join(DocumentEntity, DocumentEntity.entity_id == Entity.id)
+        .where(DocumentEntity.document_id == doc.id)
+        .order_by(DocumentEntity.mention_count.desc(), Entity.code)
+    ).all()
+    base = _out(doc, uploader.full_name if uploader else None)
+    return DocumentDetail(
+        **base.model_dump(),
+        summary=doc.summary,
+        indexed_at=doc.indexed_at,
+        passage_count=passages or 0,
+        lab_ids=[
+            LabIdOut(code=code, entity_type=kind, mentions=count)
+            for code, kind, count in lab_ids
+        ],
+    )
 
 
 @router.get("/{document_id}/file", response_model=None)
@@ -284,4 +311,73 @@ def delete_documents(
     return DeleteResult(
         deleted=[i for i in ids if i in found],
         not_found=[i for i in ids if i not in found],
+    )
+
+
+TEXT_PREVIEW_CHARS = 200_000
+
+
+@router.get("/{document_id}/text")
+def get_document_text(
+    document_id: uuid.UUID, db: DbSession, user: CurrentUser, storage: StorageDep
+) -> DocumentText:
+    """The text the indexer sees, per page or sheet, for the Extracted text tab."""
+    doc = _get_or_404(db, document_id)
+    try:
+        sections = extract(doc.file_type, storage.read(doc.external_path))
+    except ExtractionError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"Couldn't read this file's text: {exc}",
+        ) from exc
+
+    out: list[TextSection] = []
+    used = 0
+    truncated = False
+    for section in sections:
+        room = TEXT_PREVIEW_CHARS - used
+        if room <= 0:
+            truncated = True
+            break
+        text = section.text[:room]
+        truncated = truncated or len(text) < len(section.text)
+        used += len(text)
+        out.append(TextSection(label=section.label, page=section.page, text=text))
+    return DocumentText(sections=out, truncated=truncated)
+
+
+@router.get("/{document_id}/content", response_model=None)
+def get_document_content(
+    document_id: uuid.UUID, db: DbSession, user: CurrentUser, storage: StorageDep
+) -> Response:
+    """The file itself from our own origin, for in-app viewers (no S3 CORS needed)."""
+    doc = _get_or_404(db, document_id)
+    return Response(
+        content=storage.read(doc.external_path),
+        media_type=CONTENT_TYPES[doc.file_type],
+        headers={
+            "Content-Disposition": inline_disposition(_filename(doc)),
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
+@router.get("/{document_id}/table")
+def get_document_table(
+    document_id: uuid.UUID, db: DbSession, user: CurrentUser, storage: StorageDep
+) -> DocumentTable:
+    """XLSX or CSV as rows of text, for the table view."""
+    doc = _get_or_404(db, document_id)
+    if doc.file_type not in ("xlsx", "csv"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Only XLSX and CSV files have a table view."
+        )
+    try:
+        sheets = read_table(doc.file_type, storage.read(doc.external_path))
+    except TableError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return DocumentTable(
+        sheets=[
+            TableSheet(name=s.name, rows=s.rows, truncated=s.truncated) for s in sheets
+        ]
     )

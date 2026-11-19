@@ -81,7 +81,7 @@ export function AppShell() {
           </Sheet>
         </header>
 
-        <main className="mx-auto w-full max-w-[1100px] px-5 py-8 md:px-8 md:py-10">
+        <main className="mx-auto w-full max-w-[1600px] px-5 py-8 md:px-8 md:py-10 xl:px-12">
           <Outlet />
         </main>
       </div>

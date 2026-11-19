@@ -1,6 +1,6 @@
 import { ListFilter } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -203,14 +203,13 @@ export function DocumentsPage() {
                       </TableCell>
                     )}
                     <TableCell className="w-full max-w-0">
-                      <a
-                        href={`/api/documents/${doc.id}/file`}
-                        target="_blank"
-                        rel="noreferrer"
+                      <Link
+                        to={`/documents/${doc.id}`}
+                        state={{ back: params.size ? `/documents?${params}` : '/documents' }}
                         className="block truncate font-medium hover:text-primary"
                       >
                         {doc.title}
-                      </a>
+                      </Link>
                       <span className="block truncate font-mono text-xs text-muted-foreground">
                         {doc.filename}
                       </span>
