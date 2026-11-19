@@ -23,7 +23,7 @@ export type DocFilters = { type?: string; from?: string; to?: string }
 
 const startOfLocalDay = (day: string) => new Date(`${day}T00:00:00`)
 
-export const PAGE_SIZE = 20
+export const PAGE_SIZE = 10
 export const documentsKey = ['documents'] as const
 
 const isWorking = (d: DocumentItem) => d.status === 'pending' || d.status === 'processing'

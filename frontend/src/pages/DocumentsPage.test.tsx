@@ -38,7 +38,8 @@ function serve(role: 'admin' | 'viewer', all: DocumentItem[] = DOCS, total?: num
       const q = (lastUrl.searchParams.get('q') ?? '').toLowerCase()
       const offset = Number(lastUrl.searchParams.get('offset') ?? 0)
       const matches = all.filter((d) => d.title.toLowerCase().includes(q))
-      return HttpResponse.json({ items: matches.slice(offset, offset + 20), total: total ?? matches.length })
+      const limit = Number(lastUrl.searchParams.get('limit') ?? 20)
+      return HttpResponse.json({ items: matches.slice(offset, offset + limit), total: total ?? matches.length })
     }),
   )
 }
@@ -87,12 +88,12 @@ describe('DocumentsPage', () => {
     const many = Array.from({ length: 25 }, (_, i) => doc({ title: `Doc ${i + 1}` }))
     serve('viewer', many)
     renderPage()
-    expect(await screen.findByText('Showing 1–20 of 25')).toBeInTheDocument()
+    expect(await screen.findByText('Showing 1–10 of 25')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /next/i }))
 
-    await waitFor(() => expect(lastUrl.searchParams.get('offset')).toBe('20'))
-    expect(await screen.findByText('Showing 21–25 of 25')).toBeInTheDocument()
+    await waitFor(() => expect(lastUrl.searchParams.get('offset')).toBe('10'))
+    expect(await screen.findByText('Showing 11–20 of 25')).toBeInTheDocument()
   })
 
   it('shows the upload button to every user', async () => {
