@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router'
 
 import { buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DocumentActions } from '@/features/documents/DocumentActions'
 import { DocumentPreview } from '@/features/documents/DocumentPreview'
 import { formatBytes, formatDate } from '@/features/documents/format'
 import { StatusBadge } from '@/features/documents/StatusBadge'
@@ -78,6 +79,7 @@ export function DocumentPage() {
             <ExternalLink aria-hidden="true" />
             Open original
           </a>
+          <DocumentActions doc={doc} back={back} />
         </div>
       </div>
 
