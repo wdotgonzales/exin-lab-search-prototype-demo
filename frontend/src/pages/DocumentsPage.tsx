@@ -13,6 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useMe } from '@/features/auth/useAuth'
+import { DeleteSelectedBar } from '@/features/documents/DeleteSelectedBar'
 import { formatBytes, formatDate } from '@/features/documents/format'
 import { Pagination } from '@/features/documents/Pagination'
 import { StatusBadge } from '@/features/documents/StatusBadge'
@@ -60,6 +62,28 @@ export function DocumentsPage() {
 
   const { data, isPending, isError, refetch, isRefetching } = useDocuments(q, page)
 
+  const { data: me } = useMe()
+  const isAdmin = me?.role === 'admin'
+
+  // A selection belongs to one filter + page: changing either starts empty,
+  // so nobody deletes files they can't see.
+  const view = `${q}|${page}`
+  const [selection, setSelection] = useState({ view, ids: new Set<string>() })
+  const selectedIds = selection.view === view ? selection.ids : new Set<string>()
+  const items = data?.items ?? []
+  const selectedDocs = isAdmin ? items.filter((d) => selectedIds.has(d.id)) : []
+  const allSelected = items.length > 0 && selectedDocs.length === items.length
+  const someSelected = selectedDocs.length > 0 && !allSelected
+  const setIds = (ids: Set<string>) => setSelection({ view, ids })
+  const toggle = (id: string) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setIds(next)
+  }
+  const toggleAll = () => setIds(allSelected ? new Set() : new Set(items.map((d) => d.id)))
+  const clearSelection = () => setIds(new Set())
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -76,25 +100,29 @@ export function DocumentsPage() {
       <UploadPanel items={uploads.items} onClose={uploads.clear} />
 
       <section aria-label="All documents" className="overflow-hidden rounded-xl border border-border">
-        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card/40 px-4 py-3">
-          <div className="relative w-full max-w-md">
-            <label htmlFor="doc-filter" className="sr-only">
-              Filter documents by title or filename
-            </label>
-            <ListFilter
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              id="doc-filter"
-              type="search"
-              placeholder="Filter by title or filename"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              className="pl-9"
-            />
+        {selectedDocs.length > 0 ? (
+          <DeleteSelectedBar selected={selectedDocs} onClear={clearSelection} />
+        ) : (
+          <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card/40 px-4 py-3">
+            <div className="relative w-full max-w-md">
+              <label htmlFor="doc-filter" className="sr-only">
+                Filter documents by title or filename
+              </label>
+              <ListFilter
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id="doc-filter"
+                type="search"
+                placeholder="Filter by title or filename"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {isPending ? (
           <div className="flex flex-col gap-3 p-4" aria-label="Loading documents">
@@ -130,6 +158,20 @@ export function DocumentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isAdmin && (
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all files on this page"
+                        checked={allSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = someSelected
+                        }}
+                        onChange={toggleAll}
+                        className="size-4 cursor-pointer accent-primary"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Title</TableHead>
                   <TableHead className={COLUMNS_HIDDEN_ON_PHONES}>Type</TableHead>
                   <TableHead className={COLUMNS_HIDDEN_ON_PHONES}>Size</TableHead>
@@ -145,7 +187,21 @@ export function DocumentsPage() {
               </TableHeader>
               <TableBody>
                 {data.items.map((doc) => (
-                  <TableRow key={doc.id}>
+                  <TableRow
+                    key={doc.id}
+                    data-state={selectedIds.has(doc.id) ? 'selected' : undefined}
+                  >
+                    {isAdmin && (
+                      <TableCell className="w-10">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${doc.title}`}
+                          checked={selectedIds.has(doc.id)}
+                          onChange={() => toggle(doc.id)}
+                          className="size-4 cursor-pointer accent-primary"
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="w-full max-w-0">
                       <a
                         href={`/api/documents/${doc.id}/file`}

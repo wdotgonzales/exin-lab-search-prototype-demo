@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 
@@ -124,5 +124,62 @@ describe('DocumentsPage', () => {
 
     expect(await screen.findByText('The assistant can find and cite this file.')).toBeInTheDocument()
     expect(screen.getByText(/Uploading only stores the file/)).toBeInTheDocument()
+  })
+})
+
+describe('DocumentsPage · delete', () => {
+  // Radix menus open on pointerdown, others on click: try both.
+  async function openDeleteItem() {
+    const trigger = screen.getByRole('button', { name: /actions/i })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: 'mouse' })
+    if (!screen.queryByRole('menuitem')) fireEvent.click(trigger)
+    return screen.findByRole('menuitem', { name: /delete/i })
+  }
+
+  it('hides selection from viewers', async () => {
+    serve('viewer')
+    renderPage()
+    await screen.findByText('V-017 virus QC report')
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /actions/i })).not.toBeInTheDocument()
+  })
+
+  it('selects every file on the page from the header checkbox', async () => {
+    serve('admin')
+    renderPage()
+    fireEvent.click(await screen.findByRole('checkbox', { name: /select all/i }))
+    expect(screen.getByText('3 selected')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /clear selection/i }))
+    expect(screen.queryByText('3 selected')).not.toBeInTheDocument()
+  })
+
+  it('deletes the selected files after confirming', async () => {
+    const docs = [...DOCS]
+    let sent: string[] = []
+    serve('admin', docs)
+    server.use(
+      http.post('/api/documents/delete', async ({ request }) => {
+        sent = ((await request.json()) as { document_ids: string[] }).document_ids
+        for (const id of sent) docs.splice(docs.findIndex((d) => d.id === id), 1)
+        return HttpResponse.json({ deleted: sent, not_found: [] })
+      }),
+    )
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select C-07 surgery log' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Old freezer scan' }))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+
+    fireEvent.click(await openDeleteItem())
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('C-07_surgery_log.csv')).toBeInTheDocument()
+    expect(within(dialog).getByText('freezer.pdf')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Yes, delete 2 files' }))
+
+    await waitFor(() => expect(screen.queryByText('Old freezer scan')).not.toBeInTheDocument())
+    expect(sent).toEqual([DOCS[0].id, DOCS[2].id])
+    expect(screen.queryByText('C-07 surgery log')).not.toBeInTheDocument()
+    expect(screen.getByText('V-017 virus QC report')).toBeInTheDocument()
   })
 })
