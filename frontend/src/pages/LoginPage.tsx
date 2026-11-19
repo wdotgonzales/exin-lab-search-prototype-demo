@@ -49,15 +49,11 @@ export function LoginPage() {
         <Logo />
         <div className="space-y-6">
           <h1 className="font-serif text-5xl leading-tight text-foreground">
-            Every mouse, virus and experiment,{' '}
-            <span className="text-primary">one search away.</span>
+            Exin Therapeutics{' '}
+            <span className="text-primary">Document Repository</span>
           </h1>
           <p className="max-w-md text-muted-foreground">
-            Search notebooks, surgery logs and QC reports across the lab, and ask
-            questions that come back with citations.
-          </p>
-          <p className="font-mono text-xs text-muted-foreground">
-            M-042 · V-017 · EXP-007 · C-07
+            Upload, search and read the lab&apos;s documents.
           </p>
         </div>
         <p className="text-xs text-muted-foreground">Prototype · demo data only</p>
