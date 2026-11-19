@@ -337,3 +337,49 @@ def test_document_table_rejects_other_types(client, sign_in, storage):
     ]
 
     assert client.get(f"/api/documents/{doc_id}/table").status_code == 400
+
+
+def _titles(client, **params):
+    resp = client.get("/api/documents", params=params)
+    assert resp.status_code == 200, resp.text
+    return sorted(d["title"] for d in resp.json()["items"]), resp.json()["total"]
+
+
+def test_list_filters_by_file_type(client, sign_in, storage):
+    sign_in("viewer")
+    upload(client, ("report.pdf", pdf(1)), ("notes.md", b"# notes\n"))
+
+    assert _titles(client, type="pdf") == (["report"], 1)
+    assert _titles(client, type="md") == (["notes"], 1)
+    assert client.get("/api/documents", params={"type": "exe"}).status_code == 422
+
+
+def test_list_filters_by_date_added(client, db_session, sign_in, storage):
+    sign_in("viewer")
+    body = upload(client, ("old.pdf", pdf(1)), ("new.pdf", pdf(2))).json()
+    old_id = uuid.UUID(body["accepted"][0]["document_id"])
+    db_session.get(Document, old_id).created_at = datetime(
+        2026, 10, 1, 9, 0, tzinfo=UTC
+    )
+    db_session.flush()
+
+    # [after, before): before is exclusive
+    oct_range = {
+        "added_after": "2026-10-01T00:00:00Z",
+        "added_before": "2026-10-02T00:00:00Z",
+    }
+    assert _titles(client, **oct_range) == (["old"], 1)
+    assert _titles(client, added_after="2026-10-02T00:00:00Z") == (["new"], 1)
+    assert _titles(client, added_before="2026-10-01T09:00:00Z") == ([], 0)
+
+
+def test_list_rejects_backwards_date_range(client, sign_in):
+    sign_in("viewer")
+    resp = client.get(
+        "/api/documents",
+        params={
+            "added_after": "2026-11-19T00:00:00Z",
+            "added_before": "2026-11-01T00:00:00Z",
+        },
+    )
+    assert resp.status_code == 422

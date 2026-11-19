@@ -62,7 +62,7 @@ describe('DocumentsPage', () => {
     renderPage()
     await screen.findByText('C-07 surgery log')
 
-    fireEvent.change(screen.getByLabelText('Filter documents by title or filename'), {
+    fireEvent.change(screen.getByLabelText('Search documents by title or filename'), {
       target: { value: 'surgery' },
     })
 
@@ -75,7 +75,7 @@ describe('DocumentsPage', () => {
     renderPage()
     await screen.findByText('C-07 surgery log')
 
-    fireEvent.change(screen.getByLabelText('Filter documents by title or filename'), {
+    fireEvent.change(screen.getByLabelText('Search documents by title or filename'), {
       target: { value: 'zzz' },
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Clear filter' }))

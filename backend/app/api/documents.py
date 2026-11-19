@@ -1,6 +1,7 @@
 import logging
 import uuid
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
@@ -81,26 +82,51 @@ def _get_or_404(db: DbSession, document_id: uuid.UUID) -> Document:
     return doc
 
 
+FileTypeFilter = Literal["pdf", "docx", "xlsx", "csv", "md", "txt"]
+
+
 @router.get("")
 def list_documents(
     db: DbSession,
     user: CurrentUser,
     q: Annotated[str | None, Query(max_length=200)] = None,
+    file_type: Annotated[FileTypeFilter | None, Query(alias="type")] = None,
+    added_after: datetime | None = None,
+    added_before: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> DocumentList:
+    """added_after is inclusive and added_before exclusive: the client sends its
+    local day boundaries as exact moments, so no timezone guessing here."""
+    if added_after and added_before and added_after >= added_before:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "The start date must be before the end date.",
+        )
+
+    filters = []
+    if q and q.strip():
+        pattern = f"%{_escape_like(q.strip())}%"
+        filters.append(
+            or_(
+                Document.title.ilike(pattern, escape="\\"),
+                FILENAME.ilike(pattern, escape="\\"),
+            )
+        )
+    if file_type:
+        filters.append(Document.file_type == file_type)
+    if added_after:
+        filters.append(Document.created_at >= added_after)
+    if added_before:
+        filters.append(Document.created_at < added_before)
+
     stmt = select(Document, User.full_name).outerjoin(
         User, Document.uploaded_by == User.id
     )
     count = select(func.count()).select_from(Document)
-    if q and q.strip():
-        pattern = f"%{_escape_like(q.strip())}%"
-        match = or_(
-            Document.title.ilike(pattern, escape="\\"),
-            FILENAME.ilike(pattern, escape="\\"),
-        )
-        stmt = stmt.where(match)
-        count = count.where(match)
+    if filters:
+        stmt = stmt.where(*filters)
+        count = count.where(*filters)
 
     rows = db.execute(
         stmt.order_by(Document.created_at.desc(), Document.id.desc())
