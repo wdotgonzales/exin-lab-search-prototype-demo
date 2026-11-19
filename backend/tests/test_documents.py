@@ -278,3 +278,62 @@ def test_document_text_unreadable_file_is_422(client, sign_in, storage):
     doc_id = body["accepted"][0]["document_id"]
 
     assert client.get(f"/api/documents/{doc_id}/text").status_code == 422
+
+
+def _xlsx(rows) -> bytes:
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    workbook.active.title = "Scores"
+    for row in rows:
+        workbook.active.append(row)
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def test_document_content_serves_the_file(client, sign_in, storage):
+    sign_in("viewer")
+    data = b"# Notes\n\nM-045 window clouded.\n"
+    doc_id = upload(client, ("notes.md", data)).json()["accepted"][0]["document_id"]
+
+    resp = client.get(f"/api/documents/{doc_id}/content")
+
+    assert resp.status_code == 200
+    assert resp.content == data
+
+
+def test_document_table_reads_xlsx_sheets(client, sign_in, storage):
+    sign_in("viewer")
+    data = _xlsx([["Mouse", "Index"], ["M-013", 0.33], ["M-014", 2.0]])
+    doc_id = upload(client, ("scores.xlsx", data)).json()["accepted"][0]["document_id"]
+
+    resp = client.get(f"/api/documents/{doc_id}/table")
+
+    assert resp.status_code == 200
+    sheet = resp.json()["sheets"][0]
+    assert sheet["name"] == "Scores"
+    assert sheet["rows"] == [["Mouse", "Index"], ["M-013", "0.33"], ["M-014", "2"]]
+    assert sheet["truncated"] is False
+
+
+def test_document_table_reads_csv(client, sign_in, storage):
+    sign_in("viewer")
+    doc_id = upload(client, ("log.csv", b"mouse,date\nM-045,2026-10-14\n")).json()[
+        "accepted"
+    ][0]["document_id"]
+
+    rows = client.get(f"/api/documents/{doc_id}/table").json()["sheets"][0]["rows"]
+
+    assert rows == [["mouse", "date"], ["M-045", "2026-10-14"]]
+
+
+def test_document_table_rejects_other_types(client, sign_in, storage):
+    sign_in("viewer")
+    doc_id = upload(client, ("notes.md", b"# hi\n")).json()["accepted"][0][
+        "document_id"
+    ]
+
+    assert client.get(f"/api/documents/{doc_id}/table").status_code == 400

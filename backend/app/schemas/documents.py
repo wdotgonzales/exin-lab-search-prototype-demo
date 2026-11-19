@@ -74,3 +74,13 @@ class TextSection(BaseModel):
 class DocumentText(BaseModel):
     sections: list[TextSection]
     truncated: bool
+
+
+class TableSheet(BaseModel):
+    name: str
+    rows: list[list[str]]
+    truncated: bool
+
+
+class DocumentTable(BaseModel):
+    sheets: list[TableSheet]

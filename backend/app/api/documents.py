@@ -22,6 +22,7 @@ from app.config import get_settings
 from app.core import audit
 from app.core.files import CONTENT_TYPES, FileRejected, check_file
 from app.core.storage import Storage, get_storage, inline_disposition
+from app.core.tables import TableError, read_table
 from app.ingest.extract import ExtractionError, extract
 from app.models import Chunk, Document, DocumentEntity, Entity, Job, Source, User
 from app.models.source import UPLOAD_SOURCE_NAME
@@ -31,8 +32,10 @@ from app.schemas.documents import (
     DocumentDetail,
     DocumentList,
     DocumentOut,
+    DocumentTable,
     DocumentText,
     LabIdOut,
+    TableSheet,
     TextSection,
     UploadAccepted,
     UploadRejected,
@@ -341,3 +344,40 @@ def get_document_text(
         used += len(text)
         out.append(TextSection(label=section.label, page=section.page, text=text))
     return DocumentText(sections=out, truncated=truncated)
+
+
+@router.get("/{document_id}/content", response_model=None)
+def get_document_content(
+    document_id: uuid.UUID, db: DbSession, user: CurrentUser, storage: StorageDep
+) -> Response:
+    """The file itself from our own origin, for in-app viewers (no S3 CORS needed)."""
+    doc = _get_or_404(db, document_id)
+    return Response(
+        content=storage.read(doc.external_path),
+        media_type=CONTENT_TYPES[doc.file_type],
+        headers={
+            "Content-Disposition": inline_disposition(_filename(doc)),
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
+@router.get("/{document_id}/table")
+def get_document_table(
+    document_id: uuid.UUID, db: DbSession, user: CurrentUser, storage: StorageDep
+) -> DocumentTable:
+    """XLSX or CSV as rows of text, for the table view."""
+    doc = _get_or_404(db, document_id)
+    if doc.file_type not in ("xlsx", "csv"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Only XLSX and CSV files have a table view."
+        )
+    try:
+        sheets = read_table(doc.file_type, storage.read(doc.external_path))
+    except TableError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return DocumentTable(
+        sheets=[
+            TableSheet(name=s.name, rows=s.rows, truncated=s.truncated) for s in sheets
+        ]
+    )
