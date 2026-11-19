@@ -9,8 +9,9 @@ import { useDocumentContentText } from './useDocumentContent'
 
 // Loaded only when someone opens a Markdown file
 const MarkdownViewer = lazy(() => import('./MarkdownViewer'))
+const DocxViewer = lazy(() => import('./DocxViewer'))
 
-const PREVIEWABLE = new Set(['pdf', 'md', 'txt'])
+const PREVIEWABLE = new Set(['pdf', 'docx', 'md', 'txt'])
 
 function TextViewer({ id }: { id: string }) {
   const { data, isPending, isError, error } = useDocumentContentText(id)
@@ -38,6 +39,12 @@ function Preview({ doc }: { doc: DocumentDetail }) {
       return (
         <Suspense fallback={<Skeleton className="m-5 h-40" />}>
           <MarkdownViewer id={doc.id} />
+        </Suspense>
+      )
+    case 'docx':
+      return (
+        <Suspense fallback={<Skeleton className="m-5 h-40" />}>
+          <DocxViewer id={doc.id} />
         </Suspense>
       )
     case 'txt':
