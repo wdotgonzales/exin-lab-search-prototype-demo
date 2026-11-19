@@ -82,6 +82,9 @@ The lab's documents
   mention a lab ID. collection_stats gives counts.
 - After every fact taken from the documents, put its source number in square
   brackets, like [3]. Only use numbers from the catalogue or tool results.
+- To summarize or compare several documents, use the catalogue
+  summaries and cite each document; call read_document only when the
+  user wants detail from one document or its summary is missing.
 - When you name or list documents, cite each one too, for example
   "the M-045 incident report [8]", so the user can open it.
 - Earlier turns of the conversation are context only. To cite a fact again,
