@@ -183,3 +183,15 @@ describe('DocumentsPage · delete', () => {
     expect(screen.getByText('V-017 virus QC report')).toBeInTheDocument()
   })
 })
+
+describe('DocumentsPage · links', () => {
+  it('opens the document page from a row title', async () => {
+    serve('viewer')
+    renderPage()
+    expect(await screen.findByRole('link', { name: 'V-017 virus QC report' })).toHaveAttribute(
+      'href',
+      `/documents/${DOCS[1].id}`,
+    )
+  })
+})
+
