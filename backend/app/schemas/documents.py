@@ -50,3 +50,27 @@ class DeleteRequest(BaseModel):
 class DeleteResult(BaseModel):
     deleted: list[uuid.UUID]
     not_found: list[uuid.UUID]
+
+
+class LabIdOut(BaseModel):
+    code: str
+    entity_type: str
+    mentions: int
+
+
+class DocumentDetail(DocumentOut):
+    summary: str | None
+    indexed_at: datetime | None
+    passage_count: int
+    lab_ids: list[LabIdOut]
+
+
+class TextSection(BaseModel):
+    label: str | None
+    page: int | None
+    text: str
+
+
+class DocumentText(BaseModel):
+    sections: list[TextSection]
+    truncated: bool

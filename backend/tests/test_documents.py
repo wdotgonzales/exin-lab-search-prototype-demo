@@ -8,7 +8,8 @@ from app.config import get_settings
 from app.core.security import SESSION_COOKIE, create_access_token
 from app.core.storage import LocalStorage, get_storage
 from app.main import app
-from app.models import AuditLog, Document, Job, User
+from app.models import AuditLog, Document, DocumentEntity, Entity, Job, User
+from app.models.entity import ENTITY_TYPES
 
 PDF = b"%PDF-1.7\n%test\n"
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
@@ -222,3 +223,58 @@ def test_delete_needs_1_to_50_ids(client, sign_in, storage):
     sign_in("admin")
     assert delete_docs(client, []).status_code == 422
     assert delete_docs(client, [uuid.uuid4() for _ in range(51)]).status_code == 422
+
+
+def test_document_detail_has_summary_lab_ids_and_counts(
+    client, db_session, sign_in, storage
+):
+    sign_in("viewer")
+    body = upload(client, ("EXP-007_notes.pdf", pdf(1))).json()
+    doc_id = uuid.UUID(body["accepted"][0]["document_id"])
+    db_session.get(Document, doc_id).summary = "Short summary."
+    for code, mentions in [("M-045", 1), ("EXP-007", 3)]:
+        entity = Entity(entity_type=ENTITY_TYPES[0], code=code)
+        db_session.add(entity)
+        db_session.flush()
+        db_session.add(
+            DocumentEntity(
+                document_id=doc_id, entity_id=entity.id, mention_count=mentions
+            )
+        )
+    db_session.flush()
+
+    resp = client.get(f"/api/documents/{doc_id}")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["title"] == "EXP-007 notes"
+    assert data["summary"] == "Short summary."
+    assert data["passage_count"] == 0
+    assert [x["code"] for x in data["lab_ids"]] == ["EXP-007", "M-045"]
+    assert data["lab_ids"][0]["mentions"] == 3
+
+
+def test_document_detail_unknown_id_is_404(client, sign_in):
+    sign_in("viewer")
+    assert client.get(f"/api/documents/{uuid.uuid4()}").status_code == 404
+
+
+def test_document_text_returns_extracted_sections(client, sign_in, storage):
+    sign_in("viewer")
+    body = upload(client, ("notes.md", b"# Incident\n\nM-045 window clouded.\n")).json()
+    doc_id = body["accepted"][0]["document_id"]
+
+    resp = client.get(f"/api/documents/{doc_id}/text")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["truncated"] is False
+    assert "M-045 window clouded." in " ".join(s["text"] for s in data["sections"])
+
+
+def test_document_text_unreadable_file_is_422(client, sign_in, storage):
+    sign_in("viewer")
+    body = upload(client, ("broken.pdf", pdf(1))).json()
+    doc_id = body["accepted"][0]["document_id"]
+
+    assert client.get(f"/api/documents/{doc_id}/text").status_code == 422
