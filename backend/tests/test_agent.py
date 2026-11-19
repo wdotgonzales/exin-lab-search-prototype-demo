@@ -224,3 +224,10 @@ def test_old_citation_numbers_are_removed_from_history(db_session):
             "content": "EXP-007 used V-017. It was injected in C-07.",
         },
     ]
+
+
+def test_instructions_prefer_catalogue_summaries():
+    from app.chat.agent import INSTRUCTIONS
+
+    assert "catalogue" in INSTRUCTIONS
+    assert "read_document only when" in INSTRUCTIONS
