@@ -1,4 +1,4 @@
-import { ListFilter } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
@@ -15,13 +15,14 @@ import {
 } from '@/components/ui/table'
 import { useMe } from '@/features/auth/useAuth'
 import { DeleteSelectedBar } from '@/features/documents/DeleteSelectedBar'
+import { ActiveFilterChips, FilterDialog } from '@/features/documents/FilterDialog'
 import { formatBytes, formatDate } from '@/features/documents/format'
 import { Pagination } from '@/features/documents/Pagination'
 import { StatusBadge } from '@/features/documents/StatusBadge'
 import { StatusLegend } from '@/features/documents/StatusLegend'
 import { UploadDialog } from '@/features/documents/UploadDialog'
 import { UploadPanel } from '@/features/documents/UploadPanel'
-import { PAGE_SIZE, useDocuments } from '@/features/documents/useDocuments'
+import { type DocFilters, PAGE_SIZE, useDocuments } from '@/features/documents/useDocuments'
 import { useUploadQueue } from '@/features/documents/useUploadQueue'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 
@@ -32,6 +33,24 @@ export function DocumentsPage() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const page = Math.max(1, Number(params.get('page')) || 1)
+  const filters = {
+    type: params.get('type') ?? '',
+    from: params.get('from') ?? '',
+    to: params.get('to') ?? '',
+  }
+  const activeFilters = [filters.type, filters.from || filters.to].filter(Boolean).length
+  const filtered = Boolean(q) || activeFilters > 0
+  const setFilters = (next: DocFilters) =>
+    setParams((prev) => {
+      const out = new URLSearchParams(prev)
+      for (const key of ['type', 'from', 'to'] as const) {
+        const value = next[key]
+        if (value) out.set(key, value)
+        else out.delete(key)
+      }
+      out.delete('page')
+      return out
+    })
 
   const [text, setText] = useState(q)
   const debounced = useDebouncedValue(text, 300)
@@ -60,14 +79,14 @@ export function DocumentsPage() {
       return next
     })
 
-  const { data, isPending, isError, refetch, isRefetching } = useDocuments(q, page)
+  const { data, isPending, isError, refetch, isRefetching } = useDocuments(q, page, filters)
 
   const { data: me } = useMe()
   const isAdmin = me?.role === 'admin'
 
   // A selection belongs to one filter + page: changing either starts empty,
   // so nobody deletes files they can't see.
-  const view = `${q}|${page}`
+  const view = params.toString()
   const [selection, setSelection] = useState({ view, ids: new Set<string>() })
   const selectedIds = selection.view === view ? selection.ids : new Set<string>()
   const items = data?.items ?? []
@@ -91,7 +110,9 @@ export function DocumentsPage() {
           <p className="text-xs tracking-[0.14em] text-primary uppercase">Documents</p>
           <h1 className="font-serif text-5xl leading-tight">Lab documents</h1>
           <p className="text-sm text-muted-foreground">
-            {data ? `${data.total} ${data.total === 1 ? 'file' : 'files'}` : ' '}
+            {data
+              ? `${data.total} ${filtered ? 'matching ' : ''}${data.total === 1 ? 'file' : 'files'}`
+              : ' '}
           </p>
         </div>
         <UploadDialog onUpload={uploads.start} />
@@ -106,21 +127,23 @@ export function DocumentsPage() {
           <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card/40 px-4 py-3">
             <div className="relative w-full max-w-md">
               <label htmlFor="doc-filter" className="sr-only">
-                Filter documents by title or filename
+                Search documents by title or filename
               </label>
-              <ListFilter
+              <Search
                 aria-hidden="true"
                 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
               />
               <Input
                 id="doc-filter"
                 type="search"
-                placeholder="Filter by title or filename"
+                placeholder="Search by title or filename"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 className="pl-9"
               />
             </div>
+            <FilterDialog value={filters} active={activeFilters} onApply={setFilters} />
+            <ActiveFilterChips value={filters} onChange={setFilters} />
           </div>
         )}
 
@@ -139,10 +162,19 @@ export function DocumentsPage() {
           </div>
         ) : data.items.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-4 py-12 text-center text-sm text-muted-foreground">
-            {q ? (
+            {filtered ? (
               <>
-                <p>No documents match “{q}”.</p>
-                <Button variant="outline" onClick={() => setText('')}>
+                <p>
+                  {q ? `No documents match “${q}”` : 'No documents match'}
+                  {activeFilters > 0 ? ' with these filters.' : '.'}
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setText('')
+                    setFilters({})
+                  }}
+                >
                   Clear filter
                 </Button>
               </>
