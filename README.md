@@ -1,35 +1,25 @@
 # Exin Lab Search
 
-One searchable interface over scattered lab data. Work in progress.
+Exin Lab Search is a web app that keeps a lab's documents in one place. You can upload files (PDF, Word, Excel, CSV, Markdown, text), find them by name, type or date, read them in the browser, and ask an AI assistant questions that it answers from the documents, showing which file each answer came from. Admins can also delete files and see an activity history.
+
+**Live demo:** https://exin-therapeutics.bubble-pop-rush.fyi
+
+**Stack:** React + TypeScript (Vite) · FastAPI · PostgreSQL + pgvector · OpenAI · AWS (EC2, RDS, S3)
+
+## Documentation
+
+- [User Guide](https://drive.google.com/file/d/1RwwKjPJf0-8k7nUbpe-I0MRgjTiSptUB/view): how to use the app, step by step
+- [Technical Design](https://drive.google.com/file/d/1zvezQqMv9tbIka_3DG0wfZxsCrdy5NOc/view): architecture, database, features and deployment
 
 ## Local setup
 
-The app is developed in **WSL (Ubuntu)**. Run every command below inside WSL.
+Developed on WSL (Ubuntu). You need:
 
-### 1. Install the tools
+- PostgreSQL 16 with pgvector
+- [uv](https://docs.astral.sh/uv/)
+- Node.js 20.19+
 
-| Tool | Version | Check |
-|---|---|---|
-| PostgreSQL + pgvector | 16 | `pg_lsclusters` |
-| uv (Python manager) | latest | `uv --version` |
-| Node.js | 20.19+ | `node -v` |
-
-```bash
-# PostgreSQL 16 + pgvector (official PostgreSQL apt repo)
-sudo apt install -y postgresql-common
-sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
-sudo apt install -y postgresql-16 postgresql-16-pgvector
-
-# uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.local/bin/env
-```
-
-Install Node.js with your package manager or nvm if `node -v` is missing or below 20.19.
-
-> On Windows, stop any Windows PostgreSQL service so it doesn't take port 5432.
-
-### 2. Create the database
+### 1. Database
 
 ```bash
 sudo -u postgres psql -c "CREATE USER exin WITH PASSWORD 'exin_dev';"
@@ -41,105 +31,113 @@ for db in exin_dev exin_test; do
 done
 ```
 
-Check:
+### 2. Environment files
+
+**`backend/.env`** (start from the example):
 
 ```bash
-psql "postgresql://exin:exin_dev@localhost:5432/exin_dev" -c "\dx"
+cd backend
+cp .env.example .env
 ```
 
-You should see `citext`, `pgcrypto`, `plpgsql` and `vector`.
+```env
+APP_ENV=local
+DATABASE_URL=postgresql+psycopg://exin:exin_dev@localhost:5432/exin_dev
+JWT_SECRET=<at least 32 characters, e.g. from: python3 -c "import secrets; print(secrets.token_urlsafe(48))">
+
+STORAGE_BACKEND=local
+LOCAL_STORAGE_DIR=storage
+
+EMBEDDING_BACKEND=fake
+# OPENAI_API_KEY=sk-...
+```
+
+**`frontend/.env`**:
+
+```env
+API_PROXY_TARGET=http://localhost:8000
+```
+
+Never commit `.env` files.
 
 ### 3. Backend
 
 ```bash
 cd backend
-uv sync                      # installs Python 3.12 + all packages into .venv
-cp .env.example .env         # then fill in the values below
-```
-
-`backend/.env`:
-
-```env
-APP_ENV=local
-DATABASE_URL=postgresql+psycopg://exin:exin_dev@localhost:5432/exin_dev
-JWT_SECRET=<generate one: uv run python -c "import secrets; print(secrets.token_urlsafe(48))">
-```
-
-Apply migrations, then run the API:
-
-```bash
+uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-Check: `curl localhost:8000/api/health` → `{"status":"ok","database":"ok","pgvector":"0.8.7"}`
+Check: `curl localhost:8000/api/health` should return `"status":"ok"`. API docs are at http://localhost:8000/docs.
 
-API docs: http://localhost:8000/docs
+### 4. Create an account
 
-> Always run backend commands from the `backend/` folder.
+There is no sign-up page. Create users from the command line (it asks for a password, 12+ characters):
 
-### 4. Frontend
+```bash
+cd backend
+uv run python -m app.cli create-user --email admin@example.com --name "Admin User" --role admin
+uv run python -m app.cli create-user --email viewer@example.com --name "Viewer User" --role viewer
+```
 
-In a second terminal:
+### 5. Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env         # API_PROXY_TARGET=http://localhost:8000
 npm run dev
 ```
 
-Open http://localhost:5173. The page shows the `/api/health` result.
+Open http://localhost:5173 and sign in.
 
-The Vite dev server forwards `/api/*` to the backend, so the React code never contains a backend URL.
+### 6. Uploads
 
-## Database migrations (Alembic)
+With `STORAGE_BACKEND=local`, uploaded files are saved in `backend/storage/` (git ignores this folder). No AWS account is needed.
 
-Run from `backend/`.
-
-| Task | Command |
-|---|---|
-| Apply all migrations | `uv run alembic upgrade head` |
-| Undo the last migration | `uv run alembic downgrade -1` |
-| Undo everything | `uv run alembic downgrade base` |
-| Show current version | `uv run alembic current` |
-| Show history | `uv run alembic history` |
-
-**Adding or changing a table:**
-
-1. Create or edit a model in `app/models/`.
-2. Import any new model in `app/models/__init__.py`. Alembic only sees imported models.
-3. Generate a migration:
-   ```bash
-   uv run alembic revision --autogenerate -m "short description"
-   ```
-4. Review the new file in `migrations/versions/`. Autogenerate is a draft, so check it.
-5. Apply it and test that it reverses:
-   ```bash
-   uv run alembic upgrade head
-   uv run alembic downgrade -1
-   uv run alembic upgrade head
-   ```
-6. Commit the model and the migration file together.
-
-> If you see `Target database is not up to date`, a migration exists that hasn't been applied. Run `uv run alembic upgrade head` first.
-
-## Python packages
+Files are read by a background worker. Run it in another terminal, or uploads stay at *Waiting to index*:
 
 ```bash
-uv add <package>           # app dependency
-uv add --dev <package>     # dev-only (tests, linting)
+cd backend
+uv run python -m app.worker
 ```
 
-Commit `pyproject.toml` and `uv.lock` after changes.
+Sample files to upload are in `seed-data/`.
+
+### 7. AI assistant (optional)
+
+The assistant, meaning search and file summaries need an OpenAI API key.
+
+- **No key:** keep `EMBEDDING_BACKEND=fake`. Upload, browse, filter, read and delete all work. Don't use the chat button, because it needs a key.
+- **With a key:** set these in `backend/.env`, then restart the API and the worker:
+
+  ```env
+  EMBEDDING_BACKEND=openai
+  OPENAI_API_KEY=sk-...
+  ```
+
+  Choose this before uploading. Files uploaded while it was `fake` won't have real search data.
+
+## Tests
+
+Create `backend/.env.test` pointing at the test database (tests refuse to run on any database not ending in `_test`):
+
+```env
+DATABASE_URL=postgresql+psycopg://exin:exin_dev@localhost:5432/exin_test
+JWT_SECRET=test-secret-at-least-32-characters-long
+```
+
+```bash
+cd backend && uv run pytest
+cd frontend && npm test
+```
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| `ModuleNotFoundError: No module named 'app'` | Run from `backend/`, not `backend/app/`. |
-| `/api/health` returns 503 | Postgres is down: `sudo systemctl start postgresql@16-main` |
-| `password authentication failed for user "exin"` | Step 2 wasn't completed, or `DATABASE_URL` has a typo. |
-| DBeaver (Windows) can't connect | Use host `127.0.0.1`. If it still fails, run `wsl --shutdown` in PowerShell and reopen WSL. |
-
-**Never commit `.env` files.** Only `.env.example` goes in git.
+| `No module named 'app'` | Run backend commands from `backend/`. |
+| `/api/health` returns 503 | Start Postgres: `sudo systemctl start postgresql@16-main` |
+| `password authentication failed` | Check step 1 and `DATABASE_URL`. |
+| Files stay at *Waiting to index* | The worker isn't running (step 6). |
+| Chat shows an error | `OPENAI_API_KEY` is missing (step 7). |
