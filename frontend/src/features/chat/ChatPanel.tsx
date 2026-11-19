@@ -15,9 +15,9 @@ const COMPACT_AFTER = 3
 
 const EXAMPLES = [
   'What was uploaded this week?',
-  'Summarize each document about EXP-007',
-  'Which animal had a problem with its imaging window?',
-  'Write a short email summarizing where EXP-007 stands',
+  'Summarize each document',
+  'What problems or issues are mentioned in the documents?',
+  'Write a short email summarizing the latest results',
 ]
 
 type Props = {
@@ -167,8 +167,7 @@ function EmptyState({ onPick }: { onPick: (question: string) => void }) {
       <div className="flex flex-col gap-2">
         <h3 className="font-serif text-3xl leading-tight">Ask about the lab's documents</h3>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Ask about what the files say, what was uploaded, or a lab ID like M-042. It can also
-          summarize, draft notes and explain methods.
+          Search across every uploaded file by meaning, not just keywords. Ask what the documents say, what was uploaded recently, or have it summarize, compare and draft notes. Every answer links to its sources.
         </p>
       </div>
       <div className="flex flex-col gap-2">
