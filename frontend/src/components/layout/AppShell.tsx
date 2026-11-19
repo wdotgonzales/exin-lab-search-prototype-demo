@@ -1,4 +1,4 @@
-import { FileText, Menu } from 'lucide-react'
+import { FileText, History, Menu } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 
@@ -7,12 +7,19 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/s
 import { ChatLauncher } from '@/features/chat/ChatLauncher'
 import { cn } from '@/lib/utils'
 
+import { useMe } from '@/features/auth/useAuth'
+
 import { Logo } from './Logo'
 import { UserMenu } from './UserMenu'
 
-const navItems = [{ to: '/documents', label: 'Documents', icon: FileText }]
+const navItems = [
+  { to: '/documents', label: 'Documents', icon: FileText, adminOnly: false },
+  { to: '/activity', label: 'Activity', icon: History, adminOnly: true },
+]
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const { data: me } = useMe()
+  const isAdmin = me?.role === 'admin'
   return (
     <div className="flex h-full flex-col gap-7 px-3 py-5">
       <NavLink
@@ -25,7 +32,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </NavLink>
 
       <nav aria-label="Main" className="flex flex-col gap-0.5">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {navItems
+          .filter((item) => !item.adminOnly || isAdmin)
+          .map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
